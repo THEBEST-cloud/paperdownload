@@ -1,0 +1,61 @@
+import argparse
+import tempfile
+from pathlib import Path
+
+from paperdl.downloader import DownloadContext, run, MAX_PER_RUN
+from paperdl.results import ResultStore
+from paperdl.session import browser_context, run_login
+from paperdl.adapters import springer
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="paperdl", description="按 DOI 清单批量下载文献")
+    sub = p.add_subparsers(dest="command", required=True)
+
+    sub.add_parser("login", help="打开浏览器手动登录并保存会话")
+
+    pr = sub.add_parser("run", help="按清单下载")
+    pr.add_argument("list", help="DOI 清单文件（txt/csv，每行一个 DOI 或第一列为 DOI）")
+    pr.add_argument("--max", type=int, default=MAX_PER_RUN, help="单次上限")
+    pr.add_argument("--headless", action="store_true", help="无头运行（先确认会话可用再用）")
+
+    sub.add_parser("retry", help="仅重试上次失败的条目")
+    return p
+
+
+# 已注册的适配器（阶段 0 只有 springer）
+ADAPTERS = {"springer": springer}
+
+
+def _do_run(list_path: str, max_per_run: int, headless: bool) -> None:
+    store = ResultStore(Path("results.csv"))
+    with browser_context(headless=headless) as ctx:
+        page = ctx.pages[0] if ctx.pages else ctx.new_page()
+        dctx = DownloadContext(page=page, out_dir=Path("downloads"), adapters=ADAPTERS)
+        run(Path(list_path), dctx, store, max_per_run=max_per_run)
+
+
+def _do_retry() -> None:
+    store = ResultStore(Path("results.csv"))
+    failed = store.failed_dois()
+    if not failed:
+        print("没有需要重试的失败条目。")
+        return
+    tmp = Path(tempfile.mkstemp(suffix=".txt")[1])
+    tmp.write_text("\n".join(failed), encoding="utf-8")
+    _do_run(str(tmp), max_per_run=len(failed), headless=False)
+    tmp.unlink(missing_ok=True)
+
+
+def main(argv=None) -> None:
+    args = build_parser().parse_args(argv)
+    if args.command == "login":
+        run_login()
+    elif args.command == "run":
+        _do_run(args.list, args.max, args.headless)
+    elif args.command == "retry":
+        _do_retry()
+
+
+if __name__ == "__main__":
+    main()
