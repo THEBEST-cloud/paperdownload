@@ -1,0 +1,6 @@
+downloads/
+.profile/
+results.csv
+__pycache__/
+*.pyc
+.venv/
