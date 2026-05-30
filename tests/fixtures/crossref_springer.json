@@ -1,0 +1,15 @@
+{
+  "status": "ok",
+  "message": {
+    "DOI": "10.1007/s00339-021-04567-w",
+    "publisher": "Springer Science and Business Media LLC",
+    "title": ["A study of something interesting"],
+    "container-title": ["Applied Physics A"],
+    "author": [
+      {"given": "Wei", "family": "Zhang", "sequence": "first"},
+      {"given": "Li", "family": "Chen", "sequence": "additional"}
+    ],
+    "issued": {"date-parts": [[2021, 6, 15]]},
+    "URL": "http://dx.doi.org/10.1007/s00339-021-04567-w"
+  }
+}
