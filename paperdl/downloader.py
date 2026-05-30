@@ -1,6 +1,7 @@
+import hashlib
 import random
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -14,6 +15,8 @@ DELAY_MIN = 8
 DELAY_MAX = 20
 MAX_PER_RUN = 50
 RETRIES = 2
+# 这些失败是终态，重试无意义；尤其 blocked 再快速重试会加剧对共享机构 IP 的封锁风险。
+TERMINAL_REASONS = ("no_adapter", "no_access", "no_pdf", "blocked")
 
 
 @dataclass
@@ -36,7 +39,12 @@ def download_one(md: Metadata, adapter_key: Optional[str], ctx: DownloadContext)
                          status="failed", reason=result.reason, file_path="")
     ctx.out_dir.mkdir(parents=True, exist_ok=True)
     fname = build_filename(md)
-    (ctx.out_dir / fname).write_bytes(result.pdf_bytes)
+    target = ctx.out_dir / fname
+    if target.exists():
+        suffix = hashlib.md5(md.doi.encode("utf-8")).hexdigest()[:8]
+        target = ctx.out_dir / f"{target.stem}-{suffix}{target.suffix}"
+        fname = target.name
+    target.write_bytes(result.pdf_bytes)
     return ResultRow(doi=md.doi, publisher=md.publisher, title=md.title,
                      status="success", reason="", file_path=fname)
 
@@ -61,13 +69,21 @@ def run(list_path: Path, ctx: DownloadContext, store: ResultStore,
         todo = todo[:max_per_run]
 
     for i, doi in enumerate(todo, 1):
-        md = fetch_metadata(doi)
+        try:
+            md = fetch_metadata(doi)
+        except Exception as e:
+            print(f"[{i}/{len(todo)}] {doi} -> 元数据解析失败: {e}")
+            store.record(ResultRow(doi=doi, publisher="", title="",
+                                   status="failed", reason="metadata_error", file_path=""))
+            if i < len(todo):
+                time.sleep(random.uniform(ctx.delay_min, ctx.delay_max))
+            continue
         akey = adapter_key_for(md.publisher, md.doi)
         print(f"[{i}/{len(todo)}] {doi} -> {akey or '无适配器'}  {md.title[:50]}")
         row = None
         for attempt in range(1, RETRIES + 2):
             row = download_one(md, akey, ctx)
-            if row.status == "success" or row.reason in ("no_adapter",):
+            if row.status == "success" or row.reason in TERMINAL_REASONS:
                 break
             if attempt <= RETRIES:
                 back = 2 ** attempt
