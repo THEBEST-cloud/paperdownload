@@ -40,3 +40,15 @@ def test_rsc_by_doi_prefix():
 
 def test_rsc_by_publisher_string():
     assert adapter_key_for("Royal Society of Chemistry (RSC)", "10.9999/x") == "rsc"
+
+
+def test_wiley_by_doi_prefix_1002():
+    assert adapter_key_for("Wiley", "10.1002/anie.201915678") == "wiley"
+
+
+def test_wiley_by_doi_prefix_1111():
+    assert adapter_key_for("Wiley", "10.1111/jcc.12345") == "wiley"
+
+
+def test_wiley_by_publisher_string():
+    assert adapter_key_for("Wiley-Blackwell", "10.9999/x") == "wiley"

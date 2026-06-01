@@ -6,12 +6,15 @@ _DOI_PREFIXES = {
     "10.1038": "nature",
     "10.1021": "acs",
     "10.1039": "rsc",
+    "10.1002": "wiley",
+    "10.1111": "wiley",
 }
 _PUBLISHER_KEYWORDS = {
     "springer": ["springer"],
     "elsevier": ["elsevier"],
     "acs": ["american chemical society"],
     "rsc": ["royal society of chemistry"],
+    "wiley": ["wiley"],
 }
 
 
