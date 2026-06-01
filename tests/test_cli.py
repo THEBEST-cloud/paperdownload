@@ -20,3 +20,13 @@ def test_parser_run_max_option():
 def test_parser_retry():
     args = build_parser().parse_args(["retry"])
     assert args.command == "retry"
+
+
+def test_parser_run_show_flag():
+    args = build_parser().parse_args(["run", "l.txt", "--show"])
+    assert args.show is True
+
+
+def test_parser_run_defaults_no_show():
+    args = build_parser().parse_args(["run", "l.txt"])
+    assert args.show is False

@@ -17,7 +17,7 @@ def build_parser() -> argparse.ArgumentParser:
     pr = sub.add_parser("run", help="按清单下载")
     pr.add_argument("list", help="DOI 清单文件（txt/csv，每行一个 DOI 或第一列为 DOI）")
     pr.add_argument("--max", type=int, default=MAX_PER_RUN, help="单次上限")
-    pr.add_argument("--headless", action="store_true", help="无头运行（先确认会话可用再用）")
+    pr.add_argument("--show", action="store_true", help="显示浏览器窗口(默认无头；仅在有图形界面的机器上可用)")
 
     sub.add_parser("retry", help="仅重试上次失败的条目")
     return p
@@ -27,9 +27,9 @@ def build_parser() -> argparse.ArgumentParser:
 ADAPTERS = {"springer": springer}
 
 
-def _do_run(list_path: str, max_per_run: int, headless: bool) -> None:
+def _do_run(list_path: str, max_per_run: int, show: bool = False) -> None:
     store = ResultStore(Path("results.csv"))
-    with browser_context(headless=headless) as ctx:
+    with browser_context(headless=not show) as ctx:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
         dctx = DownloadContext(page=page, out_dir=Path("downloads"), adapters=ADAPTERS)
         run(Path(list_path), dctx, store, max_per_run=max_per_run)
@@ -43,7 +43,7 @@ def _do_retry() -> None:
         return
     tmp = Path(tempfile.mkstemp(suffix=".txt")[1])
     tmp.write_text("\n".join(failed), encoding="utf-8")
-    _do_run(str(tmp), max_per_run=len(failed), headless=False)
+    _do_run(str(tmp), max_per_run=len(failed))
     tmp.unlink(missing_ok=True)
 
 
@@ -52,7 +52,7 @@ def main(argv=None) -> None:
     if args.command == "login":
         run_login()
     elif args.command == "run":
-        _do_run(args.list, args.max, args.headless)
+        _do_run(args.list, args.max, args.show)
     elif args.command == "retry":
         _do_retry()
 
