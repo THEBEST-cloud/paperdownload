@@ -13,16 +13,27 @@ python -m playwright install chromium
 
 ## 用法
 
-**第一步：登录（每隔几天会话过期后重做一次）**
+**第一步（只做一次）：填账号密码**
+
+```bash
+cp .paperdl.env.example .paperdl.env
+# 编辑 .paperdl.env，填入你的中国科技云通行证账号(中科院邮箱)和密码
+```
+
+`.paperdl.env` 已被 git 忽略，只存在你本地，不上传、不进代码库。也可以改用环境变量 `CSTCLOUD_ID` / `CSTCLOUD_PASSWORD`（优先级高于文件）。
+
+**第二步：登录（每隔约 10 天会话过期后重做一次）**
 
 ```bash
 python -m paperdl login
 ```
 
-弹出浏览器后：
-1. 用中国科技云通行证登录（账号=中科院邮箱），处理验证码/二次验证；
-2. 点进 Springer（link.springer.com）做一次机构登录，确认能看到全文；
-3. 回终端按回车保存会话。
+会弹出浏览器并**自动**用 `.paperdl.env` 里的账号密码登录通行证（勾选"10天保持登录"）：
+- 正常情况：提示"✅ 自动登录成功"，你不用动。
+- 万一弹了验证码/二次验证：提示你在浏览器里手动点一下（不会卡死）。
+- 如某出版商点进去还要"机构登录"，此时在浏览器里点一次。
+
+完成后回终端按回车保存会话。
 
 **第二步：准备 DOI 清单**
 
@@ -56,8 +67,8 @@ PDF 存到 `downloads/`，每篇结果（成功/失败及原因）记到 `result
 
 ## 现状
 
-- ✅ 已实现并测试：框架、Crossref 解析、限速/重试/去重、Springer 适配。
-- ⏳ 待你手动验证：Springer 真实端到端下载（需你登录 + 一个有权限的真实 Springer DOI）。
+- ✅ 已实现并测试：框架、Crossref 解析、限速/重试/去重、Springer 适配、通行证自动登录。
+- ⏳ 待你本地验证：自动登录 + Springer 真实端到端下载（需你填 .paperdl.env + 一个有权限的真实 Springer DOI）。
 - 🔜 后续阶段：Elsevier、Wiley/Nature、ACS/RSC/IEEE/IOP/APS、国内库 CNKI/万方/维普。
 
 设计与计划见 `docs/superpowers/`。
