@@ -1,3 +1,4 @@
+import os
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
@@ -5,6 +6,17 @@ from typing import Optional
 from playwright.sync_api import sync_playwright
 
 from paperdl.credentials import load_credentials
+
+# 本机可能配了走境外的本地代理(如 127.0.0.1:7897)。CAS 通行证/机构全文必须用
+# 机器真实国内 IP，否则被当境外陌生设备拦截、短信不达、全文权限认不出。
+_PROXY_ENV_VARS = ("http_proxy", "https_proxy", "all_proxy", "ftp_proxy", "no_proxy",
+                   "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "FTP_PROXY", "NO_PROXY")
+
+
+def disable_proxy() -> None:
+    """清掉本进程的代理环境变量，让 Chromium 与 httpx 都走直连。"""
+    for var in _PROXY_ENV_VARS:
+        os.environ.pop(var, None)
 
 LAS_HOME = "https://www.las.ac.cn/front/dataCenter/literatureAcquisition"
 PASSPORT_LOGIN = "https://passport.escience.cn/login"
@@ -20,12 +32,16 @@ def browser_context(headless: bool, base: Optional[Path] = None):
     """打开持久化上下文：登录态(cookie/localStorage)保存在 .profile/ 里复用。"""
     pdir = profile_dir(base)
     pdir.mkdir(parents=True, exist_ok=True)
+    disable_proxy()  # 进程级清代理，确保 Chromium 子进程不继承
     with sync_playwright() as pw:
         ctx = pw.chromium.launch_persistent_context(
             user_data_dir=str(pdir),
             headless=headless,
             accept_downloads=True,
-            args=["--disable-blink-features=AutomationControlled"],
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-proxy-server",  # 直连，忽略任何代理
+            ],
         )
         try:
             yield ctx
@@ -75,18 +91,41 @@ def needs_device_verification(page) -> bool:
     return find_verification_frame(page) is not None
 
 
+# 直接调发送接口，绕过页面国际电话控件(intl-tel-input)的前端格式校验 bug：
+# 该控件在境外/默认区号下会把合法国内号码判为格式错误而不发短信；服务器其实接受裸 11 位。
+_SEND_SMS_JS = """(phone) => {
+    const $ = window.jQuery;
+    let r = null;
+    $.ajax({url:'/user/phone/loginName/sendValidateCode?type=new',
+            data:'phoneNum='+encodeURIComponent(phone), async:false,
+            success:function(d){ r='OK '+JSON.stringify(d); },
+            error:function(x){ r='ERR '+x.status; }});
+    return r;
+}"""
+
+# 原生 submit 绕过 jQuery validate 的提交拦截，直接 POST 到 savePhone。
+_SUBMIT_JS = """(a) => {
+    document.querySelector('#phoneNumber').value = a.phone;
+    document.querySelector('#validateCode').value = a.code;
+    document.getElementById('createRequestForm').submit();
+}"""
+
+
 def complete_device_verification(page, input_fn=input) -> bool:
-    """终端驱动：问手机号 -> 点获取验证码 -> 问短信码 -> 提交。成功(离开验证页)返回 True。"""
+    """终端驱动一次性设备验证：问手机号 -> 直连接口发短信 -> 问短信码 -> 原生提交。
+    成功(离开验证页)返回 True。"""
     frame = find_verification_frame(page)
     if frame is None:
         return False
-    phone = input_fn("请输入接收短信的手机号(如 18612345678): ").strip()
-    frame.fill("#phoneNumber", phone)
-    frame.click("#sendValidateCode")
-    print("已点击『获取验证码』，请查收手机短信…")
+    phone = input_fn("请输入接收短信的手机号(11位): ").strip()
+    send = frame.evaluate(_SEND_SMS_JS, phone)
+    print("已请求发送验证码:", send)
     code = input_fn("请输入收到的短信验证码: ").strip()
-    frame.fill("#validateCode", code)
-    frame.click("#registBtn")
+    frame.evaluate(_SUBMIT_JS, {"phone": phone, "code": code})
+    try:
+        page.wait_for_load_state("domcontentloaded", timeout=30000)
+    except Exception:
+        pass
     try:
         page.wait_for_timeout(3000)
     except Exception:
