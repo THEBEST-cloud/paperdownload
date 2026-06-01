@@ -16,7 +16,7 @@ DELAY_MAX = 20
 MAX_PER_RUN = 50
 RETRIES = 2
 # 这些失败是终态，重试无意义；尤其 blocked 再快速重试会加剧对共享机构 IP 的封锁风险。
-TERMINAL_REASONS = ("no_adapter", "no_access", "no_pdf", "blocked")
+TERMINAL_REASONS = ("no_adapter", "no_access", "no_pdf", "blocked", "no_api_key")
 
 
 @dataclass

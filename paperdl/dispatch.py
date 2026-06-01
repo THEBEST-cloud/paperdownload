@@ -4,9 +4,11 @@ from typing import Optional
 # 按出版商名称关键词匹配，兜底按 DOI 前缀匹配。
 _PUBLISHER_KEYWORDS = {
     "springer": ["springer"],
+    "elsevier": ["elsevier"],
 }
 _DOI_PREFIXES = {
     "10.1007": "springer",
+    "10.1016": "elsevier",
 }
 
 

@@ -5,7 +5,7 @@ from pathlib import Path
 from paperdl.downloader import DownloadContext, run, MAX_PER_RUN
 from paperdl.results import ResultStore
 from paperdl.session import browser_context, run_login
-from paperdl.adapters import springer
+from paperdl.adapters import springer, elsevier
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -23,8 +23,8 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-# 已注册的适配器（阶段 0 只有 springer）
-ADAPTERS = {"springer": springer}
+# 已注册的适配器
+ADAPTERS = {"springer": springer, "elsevier": elsevier}
 
 
 def _do_run(list_path: str, max_per_run: int, show: bool = False) -> None:
