@@ -1,21 +1,24 @@
 from typing import Optional
 
-# 阶段 0 只注册 Springer。后续阶段在此表追加。
-# 按出版商名称关键词匹配，兜底按 DOI 前缀匹配。
-_PUBLISHER_KEYWORDS = {
-    "springer": ["springer"],
-    "elsevier": ["elsevier"],
-}
 _DOI_PREFIXES = {
     "10.1007": "springer",
     "10.1016": "elsevier",
+    "10.1038": "nature",
+    "10.1021": "acs",
+}
+_PUBLISHER_KEYWORDS = {
+    "springer": ["springer"],
+    "elsevier": ["elsevier"],
+    "acs": ["american chemical society"],
 }
 
 
 def adapter_key_for(publisher: str, doi: str) -> Optional[str]:
+    prefix = doi.split("/")[0] if "/" in doi else ""
+    if prefix in _DOI_PREFIXES:
+        return _DOI_PREFIXES[prefix]
     pub = (publisher or "").lower()
     for key, words in _PUBLISHER_KEYWORDS.items():
         if any(w in pub for w in words):
             return key
-    prefix = doi.split("/")[0] if "/" in doi else ""
-    return _DOI_PREFIXES.get(prefix)
+    return None
