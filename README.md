@@ -1,8 +1,14 @@
 # paperdl
 
-按 DOI 清单批量下载文献的命令行工具（阶段 0：框架 + Springer）。
+按 DOI 清单批量下载文献的命令行工具。
 
-通过中科院文献情报中心（las.ac.cn / 中国科技云通行证）的机构权限下载。**不存账号密码**——登录是你在脚本弹出的浏览器里手动完成的，会话保存在本地 `.profile/`。
+通过中科院文献情报中心（las.ac.cn / 中国科技云通行证）的机构权限下载。账号密码只存在本地 gitignore 的 `.paperdl.env`，不上传、不进代码库。
+
+**已支持**：Springer（浏览器 + 机构 IP）、Elsevier/ScienceDirect（官方 API，绕开 Cloudflare）。
+
+**两种取全文机制**：
+- 浏览器型（Springer 等）：直连中科院网络 IP，出版商按机构 IP 放行全文。
+- API 型（Elsevier）：用官方 API key + 机构 IP，绕开 ScienceDirect 的 Cloudflare/Shibboleth 墙。
 
 ## 安装
 
@@ -21,6 +27,8 @@ cp .paperdl.env.example .paperdl.env
 ```
 
 `.paperdl.env` 已被 git 忽略，只存在你本地，不上传、不进代码库。也可以改用环境变量 `CSTCLOUD_ID` / `CSTCLOUD_PASSWORD`（优先级高于文件）。
+
+下 Elsevier 文献还需在 `.paperdl.env` 填一个免费的 Elsevier API key（在 https://dev.elsevier.com 申请）：`ELSEVIER_API_KEY=...`。全文权限靠机构 IP；若仅 key 取不到全文，再向图书馆要机构令牌填 `ELSEVIER_INSTTOKEN=`。
 
 **第二步：登录（每隔约 10 天会话过期后重做一次）**
 
@@ -58,17 +66,17 @@ PDF 存到 `downloads/`，每篇结果（成功/失败及原因）记到 `result
 
 | reason | 含义 |
 |---|---|
-| `no_adapter` | 该出版商阶段 0 还没适配（目前仅 Springer） |
-| `no_access` | 没解析到下载链接/疑似无机构权限或被要求重新登录 |
-| `no_pdf` | 文章页里没找到 PDF 下载链接 |
+| `no_adapter` | 该出版商还没适配（目前支持 Springer、Elsevier） |
+| `no_access` | 无机构权限/被要求重新登录（Elsevier 多为缺机构令牌） |
+| `no_pdf` | 没找到 PDF（或 Elsevier API 只返回全文 XML 非 PDF） |
 | `blocked` | 拿到的不是 PDF（疑似反爬拦截） |
 | `timeout` | 页面或下载超时（会自动重试 2 次） |
 | `metadata_error` | Crossref 解析该 DOI 失败 |
+| `no_api_key` | 该出版商需要 API key 但 .paperdl.env 未配置 |
 
 ## 现状
 
-- ✅ 已实现并测试：框架、Crossref 解析、限速/重试/去重、Springer 适配、通行证自动登录。
-- ⏳ 待你本地验证：自动登录 + Springer 真实端到端下载（需你填 .paperdl.env + 一个有权限的真实 Springer DOI）。
-- 🔜 后续阶段：Elsevier、Wiley/Nature、ACS/RSC/IEEE/IOP/APS、国内库 CNKI/万方/维普。
+- ✅ 已端到端验证：框架、Crossref 解析、限速/重试/去重、通行证自动登录（含一次性短信设备验证）、直连绕代理、**Springer**（浏览器/IP）、**Elsevier**（官方 API）。
+- 🔜 后续：Wiley/Nature、ACS/RSC/IEEE/IOP/APS、国内库 CNKI/万方/维普。
 
 设计与计划见 `docs/superpowers/`。
