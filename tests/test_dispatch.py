@@ -32,3 +32,11 @@ def test_acs_by_doi_prefix():
 
 def test_acs_by_publisher_string():
     assert adapter_key_for("American Chemical Society (ACS)", "10.9999/x") == "acs"
+
+
+def test_rsc_by_doi_prefix():
+    assert adapter_key_for("Royal Society of Chemistry (RSC)", "10.1039/d0sc01746a") == "rsc"
+
+
+def test_rsc_by_publisher_string():
+    assert adapter_key_for("Royal Society of Chemistry (RSC)", "10.9999/x") == "rsc"
