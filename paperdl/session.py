@@ -18,6 +18,12 @@ def disable_proxy() -> None:
     for var in _PROXY_ENV_VARS:
         os.environ.pop(var, None)
 
+
+# 无头 Chromium 默认 UA 含 "HeadlessChrome"，会被 ScienceDirect 等反爬直接拦截。
+# 用普通桌面 Chrome UA 伪装。
+DESKTOP_UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+              "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+
 LAS_HOME = "https://www.las.ac.cn/front/dataCenter/literatureAcquisition"
 PASSPORT_LOGIN = "https://passport.escience.cn/login"
 
@@ -38,6 +44,7 @@ def browser_context(headless: bool, base: Optional[Path] = None):
             user_data_dir=str(pdir),
             headless=headless,
             accept_downloads=True,
+            user_agent=DESKTOP_UA,  # 去掉 HeadlessChrome 标识，过反爬
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-proxy-server",  # 直连，忽略任何代理
