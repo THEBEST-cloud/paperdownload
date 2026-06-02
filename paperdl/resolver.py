@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 import httpx
@@ -17,6 +17,7 @@ class Metadata:
     first_author: str = ""
     year: Optional[int] = None
     url: str = ""
+    links: list = field(default_factory=list)
 
 
 def parse_crossref(doi: str, raw: dict) -> Metadata:
@@ -41,6 +42,14 @@ def parse_crossref(doi: str, raw: dict) -> Metadata:
     if url.startswith("http://"):
         url = "https://" + url[len("http://"):]
 
+    links = []
+    for l in msg.get("link", []) or []:
+        links.append({
+            "url": l.get("URL", "") or "",
+            "content_type": l.get("content-type", "") or "",
+            "intended_application": l.get("intended-application", "") or "",
+        })
+
     return Metadata(
         doi=doi,
         publisher=msg.get("publisher", "") or "",
@@ -49,6 +58,7 @@ def parse_crossref(doi: str, raw: dict) -> Metadata:
         first_author=first_author,
         year=year,
         url=url,
+        links=links,
     )
 
 

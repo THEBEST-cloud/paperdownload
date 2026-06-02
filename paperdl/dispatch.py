@@ -8,6 +8,7 @@ _DOI_PREFIXES = {
     "10.1039": "rsc",
     "10.1002": "wiley",
     "10.1111": "wiley",
+    "10.1029": "wiley",
 }
 _PUBLISHER_KEYWORDS = {
     "springer": ["springer"],

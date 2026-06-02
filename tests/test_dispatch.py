@@ -52,3 +52,7 @@ def test_wiley_by_doi_prefix_1111():
 
 def test_wiley_by_publisher_string():
     assert adapter_key_for("Wiley-Blackwell", "10.9999/x") == "wiley"
+
+
+def test_agu_1029_routes_to_wiley():
+    assert adapter_key_for("American Geophysical Union (AGU)", "10.1029/2024WR038341") == "wiley"
