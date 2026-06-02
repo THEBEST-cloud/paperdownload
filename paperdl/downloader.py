@@ -79,6 +79,8 @@ def run(list_path: Path, ctx: DownloadContext, store: ResultStore,
                 time.sleep(random.uniform(ctx.delay_min, ctx.delay_max))
             continue
         akey = adapter_key_for(md.publisher, md.doi)
+        if akey is None and "crossref" in ctx.adapters:
+            akey = "crossref"
         print(f"[{i}/{len(todo)}] {doi} -> {akey or '无适配器'}  {md.title[:50]}")
         row = None
         for attempt in range(1, RETRIES + 2):
