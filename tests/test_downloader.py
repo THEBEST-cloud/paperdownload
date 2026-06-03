@@ -93,6 +93,19 @@ def test_run_retries_transient_timeout(tmp_path, monkeypatch):
     assert calls["n"] == 3  # 1 initial + 2 retries (RETRIES=2)
 
 
+def test_run_calls_progress_callback(tmp_path, monkeypatch):
+    import paperdl.downloader as d
+    monkeypatch.setattr(d, "fetch_metadata", lambda doi, client=None: Metadata(doi=doi, publisher="X"))
+    monkeypatch.setattr(d.time, "sleep", lambda s: None)
+    monkeypatch.setattr(d.random, "uniform", lambda a, b: 0)
+    calls = []
+    list_path = tmp_path / "l.txt"; list_path.write_text("10.1/a\n10.1/b\n")
+    store = ResultStore(tmp_path / "r.csv")
+    ctx = DownloadContext(page=None, out_dir=tmp_path, adapters={})
+    d.run(list_path, ctx, store, progress=lambda i, total, row: calls.append((i, total, row.doi)))
+    assert [(c[0], c[1]) for c in calls] == [(1, 2), (2, 2)]
+
+
 def test_download_one_avoids_overwrite_on_collision(tmp_path):
     a = Metadata(doi="10.1/a", first_author="Li", year=2020, title="Same Title", publisher="X")
     b = Metadata(doi="10.1/b", first_author="Li", year=2020, title="Same Title", publisher="X")

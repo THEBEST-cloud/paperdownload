@@ -20,6 +20,11 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--show", action="store_true", help="显示浏览器窗口(默认无头；仅在有图形界面的机器上可用)")
 
     sub.add_parser("retry", help="仅重试上次失败的条目")
+
+    sp = sub.add_parser("serve", help="启动网页前端")
+    sp.add_argument("--host", default="127.0.0.1")
+    sp.add_argument("--port", type=int, default=8000)
+
     return p
 
 
@@ -55,6 +60,9 @@ def main(argv=None) -> None:
         _do_run(args.list, args.max, args.show)
     elif args.command == "retry":
         _do_retry()
+    elif args.command == "serve":
+        import uvicorn
+        uvicorn.run("paperdl.web.app:app", host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

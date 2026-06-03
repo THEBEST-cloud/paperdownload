@@ -30,3 +30,9 @@ def test_parser_run_show_flag():
 def test_parser_run_defaults_no_show():
     args = build_parser().parse_args(["run", "l.txt"])
     assert args.show is False
+
+
+def test_parser_serve():
+    args = build_parser().parse_args(["serve", "--port", "9000"])
+    assert args.command == "serve"
+    assert args.port == 9000

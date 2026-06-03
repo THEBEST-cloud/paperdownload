@@ -59,7 +59,7 @@ def read_doi_list(path: Path) -> List[str]:
 
 
 def run(list_path: Path, ctx: DownloadContext, store: ResultStore,
-        max_per_run: int = MAX_PER_RUN) -> None:
+        max_per_run: int = MAX_PER_RUN, progress=None) -> None:
     dois = read_doi_list(list_path)
     done = store.completed_dois()
     todo = [d for d in dois if d not in done]
@@ -92,6 +92,8 @@ def run(list_path: Path, ctx: DownloadContext, store: ResultStore,
                 print(f"   失败({row.reason})，{back}s 后重试 {attempt}/{RETRIES}")
                 time.sleep(back)
         store.record(row)
+        if progress is not None:
+            progress(i, len(todo), row)
         print(f"   => {row.status} {row.reason}")
         if i < len(todo):
             time.sleep(random.uniform(ctx.delay_min, ctx.delay_max))

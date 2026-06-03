@@ -6,3 +6,4 @@ __pycache__/
 .venv/
 .paperdl.env
 downloadList/
+web_data/
