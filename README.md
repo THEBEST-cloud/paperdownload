@@ -17,7 +17,22 @@ pip install -r requirements.txt
 python -m playwright install chromium
 ```
 
-## 用法
+## 网页版（推荐给日常使用）
+
+```bash
+python -m paperdl serve            # 默认 http://127.0.0.1:8000
+python -m paperdl serve --host 0.0.0.0 --port 8000   # 对外暴露
+```
+
+浏览器打开后：粘贴 DOI 或上传 Excel/txt → 解析 → 开始下载 → 实时进度表（每篇状态/原因）→
+成功的可"打开PDF"预览 → "重试失败" → "打包下载ZIP"；左侧有历史任务记录。
+登录会话和 API key 仍复用 `.paperdl.env` / `.profile`，无需在网页里重填。
+
+> 服务器无图形界面时，在本地电脑用 SSH 端口转发再开浏览器：
+> `ssh -L 8000:localhost:8000 用户@服务器`，然后本地访问 http://localhost:8000
+> （若本地浏览器配了代理，给 localhost 加直连/绕过规则）。
+
+## 命令行用法
 
 **第一步（只做一次）：填账号密码**
 
