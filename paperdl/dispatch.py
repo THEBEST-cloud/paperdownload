@@ -9,6 +9,7 @@ _DOI_PREFIXES = {
     "10.1002": "wiley",
     "10.1111": "wiley",
     "10.1029": "wiley",
+    "10.3389": "frontiers",
 }
 _PUBLISHER_KEYWORDS = {
     "springer": ["springer"],
@@ -16,6 +17,7 @@ _PUBLISHER_KEYWORDS = {
     "acs": ["american chemical society"],
     "rsc": ["royal society of chemistry"],
     "wiley": ["wiley"],
+    "frontiers": ["frontiers media"],
 }
 
 
