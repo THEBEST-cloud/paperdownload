@@ -393,7 +393,10 @@ function renderJobProgress(job) {
     let actionCell = "";
     if (it.status === "success" && it.file) {
       const encName = encodeURIComponent(it.file);
-      actionCell = `<a class="btn btn-secondary btn-sm" href="/api/jobs/${job.id}/file?name=${encName}" target="_blank">打开PDF</a>`;
+      const base = `/api/jobs/${job.id}/file?name=${encName}`;
+      actionCell =
+        `<a class="btn btn-secondary btn-sm" href="${base}" target="_blank">预览</a> ` +
+        `<a class="btn btn-secondary btn-sm" href="${base}&dl=1" download="${esc(it.file)}">下载</a>`;
     }
     tr.innerHTML = `
       <td>${statusBadge(it.status)}</td>

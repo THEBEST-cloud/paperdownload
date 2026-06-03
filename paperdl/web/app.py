@@ -89,7 +89,7 @@ def api_retry(job_id: str):
 
 
 @app.get("/api/jobs/{job_id}/file")
-def api_file(job_id: str, name: str):
+def api_file(job_id: str, name: str, dl: int = 0):
     job = mgr.get(job_id)
     if not job:
         raise HTTPException(404, "not found")
@@ -97,6 +97,9 @@ def api_file(job_id: str, name: str):
     root = (mgr.base / "web_data/jobs" / job_id / "pdfs").resolve()
     if root not in p.parents or not p.exists():
         raise HTTPException(404, "no file")
+    if dl:
+        # filename= 会带上 Content-Disposition: attachment，强制浏览器下载到磁盘
+        return FileResponse(p, media_type="application/pdf", filename=name)
     return FileResponse(p, media_type="application/pdf")
 
 
