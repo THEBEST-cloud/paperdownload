@@ -56,3 +56,11 @@ def test_wiley_by_publisher_string():
 
 def test_agu_1029_routes_to_wiley():
     assert adapter_key_for("American Geophysical Union (AGU)", "10.1029/2024WR038341") == "wiley"
+
+
+def test_frontiers_by_doi_prefix():
+    assert adapter_key_for("Frontiers Media SA", "10.3389/feart.2015.00063") == "frontiers"
+
+
+def test_frontiers_by_publisher():
+    assert adapter_key_for("Frontiers Media SA", "10.9999/x") == "frontiers"
