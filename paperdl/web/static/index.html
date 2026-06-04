@@ -54,6 +54,13 @@
     font-size: 0.9rem;
   }
   input[type=number]:focus { outline: none; border-color: var(--primary); }
+  input[type=text], input[type=password], input[type=email] {
+    padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 0.9rem; width: 100%;
+  }
+  input[type=text]:focus, input[type=password]:focus, input[type=email]:focus {
+    outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+  }
   .row { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
   .field { display: flex; flex-direction: column; }
   .btn {
@@ -95,6 +102,7 @@
   .badge-running { background: #eff6ff; color: var(--primary); }
   .badge-done    { background: #dcfce7; color: var(--success); }
   .badge-error   { background: #fee2e2; color: var(--danger); }
+  .badge-queued  { background: #fef9c3; color: #92400e; }
   table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
   th {
     text-align: left; padding: 8px 10px; background: #f9fafb;
@@ -123,9 +131,10 @@
   .hist-item {
     display: flex; align-items: center; gap: 12px; padding: 8px 12px;
     border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px;
-    cursor: pointer; transition: background .12s;
+    transition: background .12s;
   }
   .hist-item:hover { background: #f9fafb; }
+  .hist-item-body { flex: 1; cursor: pointer; }
   .hist-id { font-family: monospace; font-size: 0.78rem; color: var(--muted); }
   .hist-info { flex: 1; }
   .hist-meta { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
@@ -134,17 +143,94 @@
     padding: 10px 14px; border-radius: 6px; font-size: 0.88rem; margin-bottom: 12px;
     background: #fefce8; border: 1px solid #fde68a; color: #92400e;
   }
+  .alert-error {
+    padding: 10px 14px; border-radius: 6px; font-size: 0.88rem; margin-bottom: 12px;
+    background: #fee2e2; border: 1px solid #fca5a5; color: var(--danger);
+  }
   .hidden { display: none !important; }
+
+  /* ── Auth gate ── */
+  #auth-screen {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 80vh;
+  }
+  .auth-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 32px 36px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.08);
+    width: 100%; max-width: 380px;
+  }
+  .auth-card h1 { font-size: 1.4rem; margin-bottom: 4px; }
+  .auth-card .subtitle { margin-bottom: 20px; }
+  .auth-field { margin-bottom: 14px; }
+  .auth-field label { margin-bottom: 5px; }
+  .auth-tabs { display: flex; gap: 0; margin-bottom: 20px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .auth-tab {
+    flex: 1; padding: 8px; text-align: center; cursor: pointer;
+    font-size: 0.9rem; font-weight: 500; background: #f9fafb;
+    color: var(--muted); border: none; transition: background .12s;
+  }
+  .auth-tab.active { background: var(--primary); color: #fff; }
+  .auth-tab:hover:not(.active) { background: #e5e7eb; }
+  .auth-btn-row { margin-top: 18px; }
+  .auth-btn-row .btn { width: 100%; justify-content: center; }
+
+  /* ── App header ── */
+  .app-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .app-header h1 { margin-bottom: 0; }
+  .user-info { display: flex; align-items: center; gap: 10px; font-size: 0.88rem; color: var(--muted); }
+  .user-info strong { color: var(--text); }
+
   @media(max-width:600px) {
     .row { flex-direction: column; }
     .summary-nums { gap: 10px; }
+    .auth-card { padding: 24px 18px; }
   }
 </style>
 </head>
 <body>
+
+<!-- ══ AUTH SCREEN ══ -->
+<div id="auth-screen" class="hidden">
+  <div class="auth-card">
+    <h1>📄 paperdl</h1>
+    <p class="subtitle">按 DOI 批量下载文献</p>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">登录</button>
+      <button class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">注册</button>
+    </div>
+    <div id="auth-error" class="hidden"></div>
+    <div class="auth-field">
+      <label for="auth-username">用户名</label>
+      <input type="text" id="auth-username" placeholder="请输入用户名" autocomplete="username">
+    </div>
+    <div class="auth-field">
+      <label for="auth-password">密码</label>
+      <input type="password" id="auth-password" placeholder="请输入密码" autocomplete="current-password"
+             onkeydown="if(event.key==='Enter') doAuthSubmit()">
+    </div>
+    <div class="auth-btn-row">
+      <button class="btn btn-primary" id="btn-auth-submit" onclick="doAuthSubmit()">登录</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ APP ══ -->
+<div id="app-screen" class="hidden">
 <div class="container">
-  <h1>📄 paperdl</h1>
-  <p class="subtitle">按 DOI 批量下载文献 · 本地网页版</p>
+  <div class="app-header">
+    <div>
+      <h1>📄 paperdl</h1>
+      <p class="subtitle">按 DOI 批量下载文献 · 本地网页版</p>
+    </div>
+    <div class="user-info">
+      <span>欢迎，<strong id="username-display"></strong></span>
+      <button class="btn btn-secondary btn-sm" onclick="doLogout()">退出</button>
+    </div>
+  </div>
 
   <!-- ① 解析输入 -->
   <div class="card">
@@ -209,6 +295,7 @@
     <div class="action-row">
       <button class="btn btn-danger btn-sm" id="btn-retry" onclick="retryFailed()" style="display:none">🔄 重试失败</button>
       <a class="btn btn-secondary btn-sm" id="btn-zip" href="#" style="display:none">📦 打包下载 ZIP</a>
+      <button class="btn btn-danger btn-sm" id="btn-delete-current" onclick="deleteCurrentJob()" style="display:none">🗑 删除此任务</button>
       <div id="email-send-row" style="display:none;align-items:center;gap:6px;flex-wrap:wrap">
         <input type="email" id="email-to" placeholder="收件人邮箱"
                style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;width:200px">
@@ -240,6 +327,7 @@
     <div id="history-list"><span style="color:var(--muted);font-size:.85rem">加载中…</span></div>
   </div>
 </div>
+</div><!-- /#app-screen -->
 
 <script>
 "use strict";
@@ -247,6 +335,150 @@
 let currentJobId = null;
 let pollTimer = null;
 let extractedDois = [];
+let currentUser = null;
+let authMode = "login"; // "login" | "register"
+
+/* ── 全局 API 封装（统一处理 401）── */
+async function api(url, opts) {
+  const res = await fetch(url, opts);
+  if (res.status === 401) {
+    showLogin();
+    throw new Error("unauthorized");
+  }
+  return res;
+}
+
+/* ── Auth 屏幕切换 ── */
+function showLogin() {
+  currentUser = null;
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  document.getElementById("app-screen").classList.add("hidden");
+  document.getElementById("auth-screen").classList.remove("hidden");
+  document.getElementById("auth-username").value = "";
+  document.getElementById("auth-password").value = "";
+  clearAuthError();
+}
+
+function showApp(user) {
+  currentUser = user;
+  document.getElementById("username-display").textContent = user.username || user;
+  document.getElementById("auth-screen").classList.add("hidden");
+  document.getElementById("app-screen").classList.remove("hidden");
+  loadHistory();
+}
+
+function switchAuthTab(mode) {
+  authMode = mode;
+  clearAuthError();
+  document.getElementById("tab-login").classList.toggle("active", mode === "login");
+  document.getElementById("tab-register").classList.toggle("active", mode === "register");
+  document.getElementById("btn-auth-submit").textContent = mode === "login" ? "登录" : "注册";
+  document.getElementById("auth-password").placeholder = mode === "login" ? "请输入密码" : "密码（至少 6 位）";
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById("auth-error");
+  el.className = "alert-error";
+  el.textContent = msg;
+}
+
+function clearAuthError() {
+  const el = document.getElementById("auth-error");
+  el.className = "hidden";
+  el.textContent = "";
+}
+
+async function doAuthSubmit() {
+  if (authMode === "login") await doLogin();
+  else await doRegister();
+}
+
+async function doLogin() {
+  const username = document.getElementById("auth-username").value.trim();
+  const password = document.getElementById("auth-password").value;
+  if (!username || !password) { showAuthError("请填写用户名和密码。"); return; }
+  const btn = document.getElementById("btn-auth-submit");
+  btn.disabled = true; btn.textContent = "登录中…";
+  clearAuthError();
+  try {
+    const res = await fetch("/api/login", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({username, password})
+    });
+    if (res.ok) {
+      const data = await res.json();
+      showApp(data.user || {username});
+    } else {
+      showAuthError("用户名或密码错误。");
+    }
+  } catch(e) {
+    showAuthError("登录请求失败：" + e);
+  } finally {
+    btn.disabled = false; btn.textContent = "登录";
+  }
+}
+
+async function doRegister() {
+  const username = document.getElementById("auth-username").value.trim();
+  const password = document.getElementById("auth-password").value;
+  if (!username || !password) { showAuthError("请填写用户名和密码。"); return; }
+  const btn = document.getElementById("btn-auth-submit");
+  btn.disabled = true; btn.textContent = "注册中…";
+  clearAuthError();
+  try {
+    const res = await fetch("/api/register", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({username, password})
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      // auto-login after register
+      const loginRes = await fetch("/api/login", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({username, password})
+      });
+      if (loginRes.ok) {
+        const loginData = await loginRes.json();
+        showApp(loginData.user || {username});
+      } else {
+        // registration succeeded but auto-login failed — switch to login tab
+        switchAuthTab("login");
+        showAuthError("注册成功，请登录。");
+      }
+    } else {
+      showAuthError(data.detail || "注册失败。");
+    }
+  } catch(e) {
+    showAuthError("注册请求失败：" + e);
+  } finally {
+    btn.disabled = false; btn.textContent = "注册";
+  }
+}
+
+async function doLogout() {
+  try {
+    await fetch("/api/logout", {method: "POST"});
+  } catch {}
+  showLogin();
+}
+
+/* ── 初始化：检查登录状态 ── */
+async function init() {
+  try {
+    const res = await fetch("/api/me");
+    if (res.ok) {
+      const data = await res.json();
+      showApp(data.user || data);
+    } else {
+      showLogin();
+    }
+  } catch {
+    showLogin();
+  }
+}
 
 /* ── 工具函数 ── */
 function fmtTime(iso) {
@@ -254,9 +486,14 @@ function fmtTime(iso) {
   try { return new Date(iso).toLocaleString("zh-CN"); } catch { return iso; }
 }
 function statusBadge(s) {
-  const map = {success:"badge-success",failed:"badge-failed",pending:"badge-pending",
-                running:"badge-running",done:"badge-done",error:"badge-error"};
-  const label = {success:"成功",failed:"失败",pending:"等待",running:"下载中",done:"完成",error:"错误"};
+  const map = {
+    success:"badge-success", failed:"badge-failed", pending:"badge-pending",
+    running:"badge-running", done:"badge-done", error:"badge-error", queued:"badge-queued"
+  };
+  const label = {
+    success:"成功", failed:"失败", pending:"等待", running:"运行中",
+    done:"已完成", error:"出错", queued:"排队中"
+  };
   return `<span class="badge ${map[s]||'badge-pending'}">${label[s]||s}</span>`;
 }
 
@@ -275,7 +512,7 @@ async function doExtract() {
     } else {
       alert("请输入 DOI 或上传文件。"); return;
     }
-    const res = await fetch("/api/extract", {method:"POST", body:fd});
+    const res = await api("/api/extract", {method:"POST", body:fd});
     const data = await res.json();
     extractedDois = data.dois || [];
 
@@ -293,7 +530,7 @@ async function doExtract() {
     document.getElementById("extract-result").classList.remove("hidden");
     document.getElementById("section-download").style.display = extractedDois.length > 0 ? "" : "none";
   } catch(e) {
-    alert("解析失败: " + e);
+    if (e.message !== "unauthorized") alert("解析失败: " + e);
   } finally {
     btn.disabled = false; btn.textContent = "🔍 解析 DOI";
   }
@@ -310,7 +547,7 @@ async function startJob() {
       delay_min: parseFloat(document.getElementById("delay-min").value) || 8,
       delay_max: parseFloat(document.getElementById("delay-max").value) || 20,
     };
-    const res = await fetch("/api/jobs", {
+    const res = await api("/api/jobs", {
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body: JSON.stringify(body)
@@ -320,7 +557,7 @@ async function startJob() {
     currentJobId = data.job_id;
     openJob(currentJobId);
   } catch(e) {
-    alert("提交失败: " + e);
+    if (e.message !== "unauthorized") alert("提交失败: " + e);
   } finally {
     btn.disabled = false; btn.textContent = "🚀 开始下载";
   }
@@ -343,11 +580,13 @@ function openJob(jobId) {
 async function pollJob() {
   if (!currentJobId) return;
   try {
-    const res = await fetch("/api/jobs/" + currentJobId);
+    const res = await api("/api/jobs/" + currentJobId);
     if (!res.ok) return;
     const job = await res.json();
     renderJobProgress(job);
-  } catch {}
+  } catch(e) {
+    if (e.message === "unauthorized") clearInterval(pollTimer);
+  }
 }
 
 function renderJobProgress(job) {
@@ -367,8 +606,13 @@ function renderJobProgress(job) {
   document.getElementById("progress-pct").textContent = pct + "%";
 
   const curEl = document.getElementById("current-doi");
-  curEl.textContent = job.status === "running" && job.current
-    ? "当前: " + job.current : "";
+  if (job.status === "queued") {
+    curEl.textContent = "排队等待中…（前面还有任务在跑）";
+  } else if (job.status === "running" && job.current) {
+    curEl.textContent = "当前: " + job.current;
+  } else {
+    curEl.textContent = "";
+  }
 
   const badgeEl = document.getElementById("job-status-badge");
   badgeEl.innerHTML = statusBadge(job.status) + " &nbsp;" + fmtTime(job.created_at);
@@ -389,6 +633,10 @@ function renderJobProgress(job) {
   } else {
     btnZip.style.display = "none";
   }
+  // 删除当前任务按钮（任务完成或出错后显示）
+  const btnDelCurrent = document.getElementById("btn-delete-current");
+  btnDelCurrent.style.display = (job.status === "done" || job.status === "error") ? "" : "none";
+
   // 发送邮件行
   const emailRow = document.getElementById("email-send-row");
   emailRow.style.display = job.success > 0 ? "flex" : "none";
@@ -429,7 +677,7 @@ async function retryFailed() {
   const btn = document.getElementById("btn-retry");
   btn.disabled = true; btn.textContent = "提交重试…";
   try {
-    const res = await fetch("/api/jobs/" + currentJobId + "/retry", {method:"POST"});
+    const res = await api("/api/jobs/" + currentJobId + "/retry", {method:"POST"});
     const data = await res.json();
     if (data.retrying > 0) {
       document.getElementById("job-status-badge").dataset.status = "running";
@@ -442,9 +690,49 @@ async function retryFailed() {
       }, 2000);
     }
   } catch(e) {
-    alert("重试请求失败: " + e);
+    if (e.message !== "unauthorized") alert("重试请求失败: " + e);
   } finally {
     btn.disabled = false; btn.textContent = "🔄 重试失败";
+  }
+}
+
+/* ── 删除当前任务（进度视图）── */
+async function deleteCurrentJob() {
+  if (!currentJobId) return;
+  if (!confirm("确认删除该任务及其所有文件？此操作不可恢复。")) return;
+  try {
+    const res = await api("/api/jobs/" + currentJobId, {method:"DELETE"});
+    if (res.ok) {
+      currentJobId = null;
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      document.getElementById("section-progress").classList.add("hidden");
+      loadHistory();
+    } else {
+      alert("删除失败：" + res.status);
+    }
+  } catch(e) {
+    if (e.message !== "unauthorized") alert("删除失败：" + e);
+  }
+}
+
+/* ── 删除历史任务 ── */
+async function deleteJob(jobId, e) {
+  e.stopPropagation();
+  if (!confirm("确认删除该任务及其所有文件？此操作不可恢复。")) return;
+  try {
+    const res = await api("/api/jobs/" + jobId, {method:"DELETE"});
+    if (res.ok) {
+      if (currentJobId === jobId) {
+        currentJobId = null;
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        document.getElementById("section-progress").classList.add("hidden");
+      }
+      loadHistory();
+    } else {
+      alert("删除失败：" + res.status);
+    }
+  } catch(e2) {
+    if (e2.message !== "unauthorized") alert("删除失败：" + e2);
   }
 }
 
@@ -460,7 +748,7 @@ async function sendEmail() {
   statusEl.style.color = "var(--muted)";
   statusEl.textContent = "正在发送…";
   try {
-    const res = await fetch("/api/jobs/" + currentJobId + "/email", {
+    const res = await api("/api/jobs/" + currentJobId + "/email", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({to: to})
@@ -474,8 +762,10 @@ async function sendEmail() {
       statusEl.textContent = "发送失败：" + (data.error || data.detail || "未知错误");
     }
   } catch(e) {
-    statusEl.style.color = "var(--danger)";
-    statusEl.textContent = "发送失败：" + e;
+    if (e.message !== "unauthorized") {
+      statusEl.style.color = "var(--danger)";
+      statusEl.textContent = "发送失败：" + e;
+    }
   } finally {
     btn.disabled = false; btn.textContent = "✉️ 发送到邮箱";
   }
@@ -486,27 +776,29 @@ async function loadHistory() {
   const el = document.getElementById("history-list");
   el.innerHTML = '<span style="color:var(--muted);font-size:.85rem">加载中…</span>';
   try {
-    const res = await fetch("/api/jobs");
+    const res = await api("/api/jobs");
     const jobs = await res.json();
     if (!jobs.length) {
       el.innerHTML = '<span style="color:var(--muted);font-size:.85rem">暂无历史任务。</span>';
       return;
     }
     el.innerHTML = jobs.map(j => `
-      <div class="hist-item" onclick="openJob('${esc(j.id)}')">
-        <div class="hist-info">
+      <div class="hist-item">
+        <div class="hist-item-body" onclick="openJob('${esc(j.id)}')">
           <div><strong>${esc(j.id)}</strong> ${statusBadge(j.status)}</div>
           <div class="hist-meta">${fmtTime(j.created_at)} &nbsp;|&nbsp; 成功 ${j.success}/${j.total} &nbsp;|&nbsp; 失败 ${j.failed}</div>
         </div>
+        <button class="btn btn-danger btn-sm" onclick="deleteJob('${esc(j.id)}', event)" title="删除任务">🗑 删除</button>
       </div>
     `).join("");
   } catch(e) {
-    el.innerHTML = '<span style="color:var(--danger)">加载失败</span>';
+    if (e.message !== "unauthorized")
+      el.innerHTML = '<span style="color:var(--danger)">加载失败</span>';
   }
 }
 
 /* 初始化 */
-loadHistory();
+init();
 </script>
 </body>
 </html>

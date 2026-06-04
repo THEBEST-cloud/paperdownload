@@ -1,4 +1,6 @@
 import json
+import queue
+import shutil
 import threading
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
@@ -29,12 +31,13 @@ class Job:
     dois: list
     delay_min: float = 8.0
     delay_max: float = 20.0
-    status: str = "running"   # running | done | error
+    status: str = "queued"   # queued | running | done | error
     total: int = 0
     done: int = 0
     success: int = 0
     failed: int = 0
     current: str = ""
+    owner: str = ""
     items: dict = field(default_factory=dict)   # doi -> JobItem(as dict)
 
     def to_public(self) -> dict:
@@ -50,6 +53,9 @@ class JobManager:
         self._lock = threading.Lock()
         (self.base / WEB_DATA).mkdir(parents=True, exist_ok=True)
         self._load_history()
+        self._queue: queue.Queue = queue.Queue()
+        self._worker = threading.Thread(target=self._worker_loop, daemon=True)
+        self._worker.start()
 
     def _jobs_root(self) -> Path:
         return self.base / WEB_DATA
@@ -63,27 +69,28 @@ class JobManager:
                     created_at=data["created_at"],
                     dois=data.get("dois", []),
                 )
-                for k in ("delay_min", "delay_max", "status", "total", "done", "success", "failed", "current"):
+                for k in ("delay_min", "delay_max", "status", "total", "done", "success", "failed", "current", "owner"):
                     if k in data:
                         setattr(job, k, data[k])
                 job.items = {it["doi"]: it for it in data.get("items", [])}
-                # 历史里仍标 running 的（上次中断）改为 done
-                if job.status == "running":
+                # 历史里仍标 running 或 queued 的（上次中断）改为 done
+                if job.status in ("running", "queued"):
                     job.status = "done"
                 self._jobs[job.id] = job
             except Exception:
                 continue
 
-    def _persist(self, job: Job):
+    def _persist(self, job: "Job"):
         d = self.base / WEB_DATA / job.id
         d.mkdir(parents=True, exist_ok=True)
         data = asdict(job)
         data["items"] = list(job.items.values())
         (d / "job.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
 
-    def create(self, job_id: str, created_at: str, dois: list, delay_min=8.0, delay_max=20.0) -> "Job":
+    def create(self, job_id: str, created_at: str, dois: list, delay_min=8.0, delay_max=20.0, owner: str = "") -> "Job":
         job = Job(id=job_id, created_at=created_at, dois=list(dois),
-                  delay_min=delay_min, delay_max=delay_max, total=len(dois))
+                  delay_min=delay_min, delay_max=delay_max, total=len(dois),
+                  status="queued", owner=owner)
         for doi in dois:
             job.items[doi] = asdict(JobItem(doi=doi))
         with self._lock:
@@ -94,12 +101,32 @@ class JobManager:
     def get(self, job_id: str) -> Optional["Job"]:
         return self._jobs.get(job_id)
 
-    def list(self) -> list:
-        return sorted(self._jobs.values(), key=lambda j: j.created_at, reverse=True)
+    def list(self, owner: Optional[str] = None) -> list:
+        jobs = self._jobs.values()
+        if owner is not None:
+            jobs = [j for j in jobs if j.owner == owner]
+        return sorted(jobs, key=lambda j: j.created_at, reverse=True)
 
     def start(self, job: "Job", only_dois: Optional[list] = None):
-        t = threading.Thread(target=self._run, args=(job, only_dois), daemon=True)
-        t.start()
+        job.status = "queued"
+        self._persist(job)
+        self._queue.put((job, only_dois))
+
+    def delete(self, job_id: str) -> bool:
+        with self._lock:
+            if job_id not in self._jobs:
+                return False
+            del self._jobs[job_id]
+        shutil.rmtree(self.base / WEB_DATA / job_id, ignore_errors=True)
+        return True
+
+    def _worker_loop(self):
+        while True:
+            job, only = self._queue.get()
+            try:
+                self._run(job, only)
+            finally:
+                self._queue.task_done()
 
     def _run(self, job: "Job", only_dois):
         try:

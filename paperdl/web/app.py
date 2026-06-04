@@ -3,17 +3,19 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Response, Cookie, Depends
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from paperdl.extract import extract_dois_from_text, extract_dois_from_excel
 from paperdl.dispatch import adapter_key_for
 from paperdl.web.jobs import JobManager
+from paperdl.web.auth import Auth
 from paperdl.mailer import send_pdfs
 
 app = FastAPI(title="paperdl")
 mgr = JobManager()
+auth = Auth()
 STATIC = Path(__file__).parent / "static"
 
 _counter = [0]
@@ -24,13 +26,54 @@ def _new_id() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") + "-%d" % _counter[0]
 
 
+def current_user(sid: str = Cookie(default=None)) -> str:
+    u = auth.user_for_sid(sid)
+    if not u:
+        raise HTTPException(401, "未登录")
+    return u
+
+
 @app.get("/", response_class=HTMLResponse)
 def index():
     return (STATIC / "index.html").read_text(encoding="utf-8")
 
 
+# ── Auth endpoints (no login required) ──────────────────────────────────────
+
+@app.post("/api/register")
+def api_register(payload: dict):
+    ok, msg = auth.register(payload.get("username", ""), payload.get("password", ""))
+    if not ok:
+        raise HTTPException(400, msg)
+    return {"ok": True}
+
+
+@app.post("/api/login")
+def api_login(payload: dict, response: Response):
+    sid = auth.login(payload.get("username", ""), payload.get("password", ""))
+    if not sid:
+        raise HTTPException(401, "用户名或密码错误")
+    response.set_cookie("sid", sid, httponly=True, max_age=7 * 24 * 3600, samesite="lax")
+    return {"ok": True, "user": payload.get("username", "").strip()}
+
+
+@app.post("/api/logout")
+def api_logout(response: Response, sid: str = Cookie(default=None)):
+    auth.logout(sid)
+    response.delete_cookie("sid")
+    return {"ok": True}
+
+
+@app.get("/api/me")
+def api_me(user: str = Depends(current_user)):
+    return {"user": user}
+
+
+# ── Job endpoints (login required) ──────────────────────────────────────────
+
 @app.post("/api/extract")
-async def api_extract(file: UploadFile = File(None), text: str = Form(None)):
+async def api_extract(file: UploadFile = File(None), text: str = Form(None),
+                      user: str = Depends(current_user)):
     dois = []
     if file is not None and file.filename:
         suffix = Path(file.filename or "x").suffix.lower()
@@ -52,35 +95,36 @@ async def api_extract(file: UploadFile = File(None), text: str = Form(None)):
 
 
 @app.post("/api/jobs")
-async def api_create_job(payload: dict):
+async def api_create_job(payload: dict, user: str = Depends(current_user)):
     dois = payload.get("dois") or []
     if not dois:
         raise HTTPException(400, "no dois")
     job = mgr.create(_new_id(), datetime.now(timezone.utc).isoformat(), dois,
                      delay_min=float(payload.get("delay_min", 8)),
-                     delay_max=float(payload.get("delay_max", 20)))
+                     delay_max=float(payload.get("delay_max", 20)),
+                     owner=user)
     mgr.start(job)
     return {"job_id": job.id}
 
 
 @app.get("/api/jobs")
-def api_list_jobs():
+def api_list_jobs(user: str = Depends(current_user)):
     return [{"id": j.id, "created_at": j.created_at, "total": j.total,
-             "success": j.success, "failed": j.failed, "status": j.status} for j in mgr.list()]
+             "success": j.success, "failed": j.failed, "status": j.status} for j in mgr.list(owner=user)]
 
 
 @app.get("/api/jobs/{job_id}")
-def api_job(job_id: str):
+def api_job(job_id: str, user: str = Depends(current_user)):
     job = mgr.get(job_id)
-    if not job:
+    if not job or job.owner != user:
         raise HTTPException(404, "not found")
     return job.to_public()
 
 
 @app.post("/api/jobs/{job_id}/retry")
-def api_retry(job_id: str):
+def api_retry(job_id: str, user: str = Depends(current_user)):
     job = mgr.get(job_id)
-    if not job:
+    if not job or job.owner != user:
         raise HTTPException(404, "not found")
     failed = [doi for doi, it in job.items.items() if it["status"] == "failed"]
     if not failed:
@@ -90,9 +134,9 @@ def api_retry(job_id: str):
 
 
 @app.get("/api/jobs/{job_id}/file")
-def api_file(job_id: str, name: str, dl: int = 0):
+def api_file(job_id: str, name: str, dl: int = 0, user: str = Depends(current_user)):
     job = mgr.get(job_id)
-    if not job:
+    if not job or job.owner != user:
         raise HTTPException(404, "not found")
     p = (mgr.base / "web_data/jobs" / job_id / "pdfs" / name).resolve()
     root = (mgr.base / "web_data/jobs" / job_id / "pdfs").resolve()
@@ -105,9 +149,9 @@ def api_file(job_id: str, name: str, dl: int = 0):
 
 
 @app.post("/api/jobs/{job_id}/email")
-def api_email(job_id: str, payload: dict):
+def api_email(job_id: str, payload: dict, user: str = Depends(current_user)):
     job = mgr.get(job_id)
-    if not job:
+    if not job or job.owner != user:
         raise HTTPException(404, "not found")
     to = (payload.get("to") or "").strip()
     if not to:
@@ -118,9 +162,9 @@ def api_email(job_id: str, payload: dict):
 
 
 @app.get("/api/jobs/{job_id}/zip")
-def api_zip(job_id: str):
+def api_zip(job_id: str, user: str = Depends(current_user)):
     job = mgr.get(job_id)
-    if not job:
+    if not job or job.owner != user:
         raise HTTPException(404, "not found")
     pdfs = (mgr.base / "web_data/jobs" / job_id / "pdfs")
     buf = io.BytesIO()
@@ -130,3 +174,12 @@ def api_zip(job_id: str):
     buf.seek(0)
     return StreamingResponse(buf, media_type="application/zip",
                              headers={"Content-Disposition": 'attachment; filename="%s.zip"' % job_id})
+
+
+@app.delete("/api/jobs/{job_id}")
+def api_delete_job(job_id: str, user: str = Depends(current_user)):
+    job = mgr.get(job_id)
+    if not job or job.owner != user:
+        raise HTTPException(404, "not found")
+    mgr.delete(job_id)
+    return {"ok": True}
