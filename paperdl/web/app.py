@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from paperdl.extract import extract_dois_from_text, extract_dois_from_excel
 from paperdl.dispatch import adapter_key_for
 from paperdl.web.jobs import JobManager
+from paperdl.mailer import send_pdfs
 
 app = FastAPI(title="paperdl")
 mgr = JobManager()
@@ -101,6 +102,19 @@ def api_file(job_id: str, name: str, dl: int = 0):
         # filename= 会带上 Content-Disposition: attachment，强制浏览器下载到磁盘
         return FileResponse(p, media_type="application/pdf", filename=name)
     return FileResponse(p, media_type="application/pdf")
+
+
+@app.post("/api/jobs/{job_id}/email")
+def api_email(job_id: str, payload: dict):
+    job = mgr.get(job_id)
+    if not job:
+        raise HTTPException(404, "not found")
+    to = (payload.get("to") or "").strip()
+    if not to:
+        raise HTTPException(400, "收件人为空")
+    pdf_dir = mgr.base / "web_data/jobs" / job_id / "pdfs"
+    res = send_pdfs(pdf_dir, to, subject_prefix="paperdl 文献 [%s]" % job_id)
+    return res
 
 
 @app.get("/api/jobs/{job_id}/zip")

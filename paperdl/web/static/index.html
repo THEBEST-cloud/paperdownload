@@ -209,7 +209,13 @@
     <div class="action-row">
       <button class="btn btn-danger btn-sm" id="btn-retry" onclick="retryFailed()" style="display:none">🔄 重试失败</button>
       <a class="btn btn-secondary btn-sm" id="btn-zip" href="#" style="display:none">📦 打包下载 ZIP</a>
+      <div id="email-send-row" style="display:none;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <input type="email" id="email-to" placeholder="收件人邮箱"
+               style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.82rem;width:200px">
+        <button class="btn btn-secondary btn-sm" id="btn-send-email" onclick="sendEmail()">✉️ 发送到邮箱</button>
+      </div>
     </div>
+    <div id="email-status" style="font-size:0.82rem;margin-top:6px;min-height:18px"></div>
     <div class="sep"></div>
     <h2>文件详情</h2>
     <div style="overflow-x:auto">
@@ -383,6 +389,9 @@ function renderJobProgress(job) {
   } else {
     btnZip.style.display = "none";
   }
+  // 发送邮件行
+  const emailRow = document.getElementById("email-send-row");
+  emailRow.style.display = job.success > 0 ? "flex" : "none";
 
   // 结果表格
   const tbody = document.getElementById("result-tbody");
@@ -436,6 +445,39 @@ async function retryFailed() {
     alert("重试请求失败: " + e);
   } finally {
     btn.disabled = false; btn.textContent = "🔄 重试失败";
+  }
+}
+
+/* ── 发送邮件 ── */
+async function sendEmail() {
+  if (!currentJobId) return;
+  const toInput = document.getElementById("email-to");
+  const to = toInput.value.trim();
+  if (!to) { alert("请填写收件人邮箱。"); return; }
+  const btn = document.getElementById("btn-send-email");
+  const statusEl = document.getElementById("email-status");
+  btn.disabled = true; btn.textContent = "发送中…";
+  statusEl.style.color = "var(--muted)";
+  statusEl.textContent = "正在发送…";
+  try {
+    const res = await fetch("/api/jobs/" + currentJobId + "/email", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({to: to})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      statusEl.style.color = "var(--success)";
+      statusEl.textContent = "已发送 " + data.emails + " 封邮件（共 " + data.files + " 篇 PDF）";
+    } else {
+      statusEl.style.color = "var(--danger)";
+      statusEl.textContent = "发送失败：" + (data.error || data.detail || "未知错误");
+    }
+  } catch(e) {
+    statusEl.style.color = "var(--danger)";
+    statusEl.textContent = "发送失败：" + e;
+  } finally {
+    btn.disabled = false; btn.textContent = "✉️ 发送到邮箱";
   }
 }
 
