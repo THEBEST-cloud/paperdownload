@@ -64,3 +64,11 @@ def test_frontiers_by_doi_prefix():
 
 def test_frontiers_by_publisher():
     assert adapter_key_for("Frontiers Media SA", "10.9999/x") == "frontiers"
+
+
+def test_ieee_by_doi_prefix():
+    assert adapter_key_for("IEEE", "10.1109/5.771073") == "ieee"
+
+
+def test_ieee_by_publisher():
+    assert adapter_key_for("IEEE", "10.9999/x") == "ieee"

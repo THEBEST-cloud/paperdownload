@@ -9,6 +9,7 @@ from paperdl.session import LAS_HOME, auto_login
 ADAPTER_ENTRY = {
     "nature": "nature",
     "acs": "acs",
+    "ieee": "ieee",
 }
 
 ENTRY_MATCH = {
