@@ -34,8 +34,13 @@ def profile_dir(base: Optional[Path] = None) -> Path:
 
 
 @contextmanager
-def browser_context(headless: bool, base: Optional[Path] = None):
-    """打开持久化上下文：登录态(cookie/localStorage)保存在 .profile/ 里复用。"""
+def browser_context(headless: bool, base: Optional[Path] = None, headed_xvfb: bool = False):
+    """打开持久化上下文：登录态(cookie/localStorage)保存在 .profile/ 里复用。
+    headed_xvfb=True 时，自动启动(或复用) Xvfb 虚拟显示器并以有头模式启动浏览器。"""
+    if headed_xvfb:
+        from paperdl.xvfb import ensure_display
+        ensure_display()
+        headless = False
     pdir = profile_dir(base)
     pdir.mkdir(parents=True, exist_ok=True)
     disable_proxy()  # 进程级清代理，确保 Chromium 子进程不继承
