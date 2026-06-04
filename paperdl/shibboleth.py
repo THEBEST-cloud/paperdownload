@@ -4,6 +4,13 @@ from typing import Optional
 from paperdl.session import LAS_HOME, auto_login
 
 # 出版商 -> 用于在 las 入口 URL 中识别该出版商的关键串
+# 适配器 key -> Shibboleth 入口 key：这些浏览器型出版商靠机构联邦会话取订阅全文。
+# 下载主流程会在首次遇到该出版商时建立一次会话(有头-Xvfb)，之后复用。
+ADAPTER_ENTRY = {
+    "nature": "nature",
+    "acs": "acs",
+}
+
 ENTRY_MATCH = {
     "nature": "sp.nature.com/saml",
     "springer": "fsso.springer.com",
@@ -47,6 +54,14 @@ def fetch_entries(page) -> dict:
     return out
 
 
+def _safe(fn, default=""):
+    """页面跳转中途调用 title()/content()/query_selector 会抛错；包一层当作'还在跳转'。"""
+    try:
+        return fn()
+    except Exception:
+        return default
+
+
 def ensure_session(page, entry_url: str, cid: str, pw: str) -> bool:
     """走出版商 Shibboleth 入口建立已认证会话(OAuth 自动 SSO + 同意页原生提交)。成功返回 True。"""
     auto_login(page, cid, pw, timeout=45000)
@@ -54,28 +69,27 @@ def ensure_session(page, entry_url: str, cid: str, pw: str) -> bool:
     # 等 OAuth iframe 自动 SSO
     for _ in range(20):
         page.wait_for_timeout(2000)
-        t = page.title() or ""
+        t = _safe(page.title)
+        u = _safe(lambda: page.url)
         if "Information Release" in t:
             break
-        if "passport.escience.cn/idp" not in page.url:
+        if u and "passport.escience.cn/idp" not in u:
             break
         if "Uncaught" in t:
             return False
     # 同意页 / SAML 中转
-    for _ in range(4):
-        t = page.title() or ""
-        c = page.content() or ""
-        if "Information Release" in t or page.query_selector("[name='_eventId_proceed']"):
-            page.evaluate(_CONSENT_SUBMIT)
+    for _ in range(5):
+        t = _safe(page.title)
+        proceed = _safe(lambda: page.query_selector("[name='_eventId_proceed']"), None)
+        c = _safe(page.content)
+        if "Information Release" in t or proceed:
+            _safe(lambda: page.evaluate(_CONSENT_SUBMIT), None)
             page.wait_for_timeout(3500)
         elif "SAMLResponse" in c:
-            sb = page.query_selector("input[type=submit],button[type=submit]")
+            sb = _safe(lambda: page.query_selector("input[type=submit],button[type=submit]"), None)
             if sb:
-                try:
-                    sb.click()
-                except Exception:
-                    pass
+                _safe(sb.click, None)
             page.wait_for_timeout(2500)
         else:
             break
-    return "passport.escience.cn/idp" not in page.url
+    return "passport.escience.cn/idp" not in _safe(lambda: page.url, "")

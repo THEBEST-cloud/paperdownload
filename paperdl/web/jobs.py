@@ -152,10 +152,15 @@ class JobManager:
                 job.failed = sum(1 for x in job.items.values() if x["status"] == "failed")
                 self._persist(job)
 
-            with browser_context(headless=True, base=self.base) as ctx:
+            from paperdl.credentials import load_credentials
+            creds = load_credentials(self.base)
+            cid, pw = creds if creds else (None, None)
+            # 有头-Xvfb：让 Nature/ACS 等走机构 Shibboleth 登录、并能过 Cloudflare
+            with browser_context(headless=False, headed_xvfb=True, base=self.base) as ctx:
                 page = ctx.pages[0] if ctx.pages else ctx.new_page()
                 dctx = DownloadContext(page=page, out_dir=d / "pdfs", adapters=ADAPTERS,
-                                       delay_min=job.delay_min, delay_max=job.delay_max)
+                                       delay_min=job.delay_min, delay_max=job.delay_max,
+                                       cid=cid, pw=pw)
                 run_download(list_path, dctx, store, max_per_run=10**9, progress=progress)
             job.status = "done"
             job.current = ""

@@ -1,7 +1,7 @@
 import hashlib
 import random
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -26,6 +26,27 @@ class DownloadContext:
     adapters: Dict[str, Adapter]
     delay_min: float = DELAY_MIN
     delay_max: float = DELAY_MAX
+    cid: Optional[str] = None            # 通行证账号(用于 Shibboleth 机构登录)
+    pw: Optional[str] = None
+    shib_entries: Optional[dict] = None  # 懒加载: 从 las 抓的各出版商 Shibboleth 入口
+    shib_done: set = field(default_factory=set)
+
+
+def ensure_shib_session(ctx: DownloadContext, adapter_key: str) -> None:
+    """对需要机构联邦登录的出版商(Nature/ACS 等)，每会话建立一次 Shibboleth 已认证会话。"""
+    from paperdl.shibboleth import ADAPTER_ENTRY, fetch_entries, ensure_session
+    entry_key = ADAPTER_ENTRY.get(adapter_key)
+    if not entry_key or ctx.page is None or not ctx.cid or adapter_key in ctx.shib_done:
+        return
+    ctx.shib_done.add(adapter_key)  # 不论成败都只试一次，避免反复
+    try:
+        if ctx.shib_entries is None:
+            ctx.shib_entries = fetch_entries(ctx.page)
+        url = ctx.shib_entries.get(entry_key)
+        if url:
+            ensure_session(ctx.page, url, ctx.cid, ctx.pw)
+    except Exception:
+        pass
 
 
 def download_one(md: Metadata, adapter_key: Optional[str], ctx: DownloadContext) -> ResultRow:
@@ -33,6 +54,7 @@ def download_one(md: Metadata, adapter_key: Optional[str], ctx: DownloadContext)
         return ResultRow(doi=md.doi, publisher=md.publisher, title=md.title,
                          status="failed", reason="no_adapter", file_path="")
     adapter = ctx.adapters[adapter_key]
+    ensure_shib_session(ctx, adapter_key)
     result = adapter.download(ctx.page, md)
     if not result.ok:
         return ResultRow(doi=md.doi, publisher=md.publisher, title=md.title,

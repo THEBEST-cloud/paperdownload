@@ -33,10 +33,15 @@ ADAPTERS = {"springer": springer, "elsevier": elsevier, "nature": nature, "acs":
 
 
 def _do_run(list_path: str, max_per_run: int, show: bool = False) -> None:
+    from paperdl.credentials import load_credentials
     store = ResultStore(Path("results.csv"))
-    with browser_context(headless=not show) as ctx:
+    creds = load_credentials()
+    cid, pw = creds if creds else (None, None)
+    # 有头-Xvfb：让 Nature/ACS 等走机构 Shibboleth 登录、并能过 Cloudflare
+    with browser_context(headless=not show, headed_xvfb=not show) as ctx:
         page = ctx.pages[0] if ctx.pages else ctx.new_page()
-        dctx = DownloadContext(page=page, out_dir=Path("downloads"), adapters=ADAPTERS)
+        dctx = DownloadContext(page=page, out_dir=Path("downloads"), adapters=ADAPTERS,
+                               cid=cid, pw=pw)
         run(Path(list_path), dctx, store, max_per_run=max_per_run)
 
 
