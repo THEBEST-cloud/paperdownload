@@ -38,15 +38,20 @@ def ensure_shib_session(ctx: DownloadContext, adapter_key: str) -> None:
     entry_key = ADAPTER_ENTRY.get(adapter_key)
     if not entry_key or ctx.page is None or not ctx.cid or adapter_key in ctx.shib_done:
         return
-    ctx.shib_done.add(adapter_key)  # 不论成败都只试一次，避免反复
     try:
         if ctx.shib_entries is None:
             ctx.shib_entries = fetch_entries(ctx.page)
         url = ctx.shib_entries.get(entry_key)
-        if url:
-            ensure_session(ctx.page, url, ctx.cid, ctx.pw)
+        if not url:
+            ctx.shib_done.add(adapter_key)
+            return
+        # SSO 偶发卡在 IdP(SAML 回 POST 没走完)；多试几次直到落到出版商域名。
+        for _ in range(3):
+            if ensure_session(ctx.page, url, ctx.cid, ctx.pw):
+                break
     except Exception:
         pass
+    ctx.shib_done.add(adapter_key)  # 建过会话(成或试满)后本会话不再重复
 
 
 def download_one(md: Metadata, adapter_key: Optional[str], ctx: DownloadContext) -> ResultRow:
