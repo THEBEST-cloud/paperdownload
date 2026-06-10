@@ -93,40 +93,54 @@ def _browser_download(page, md: Metadata):
                 break
             page.wait_for_timeout(2500)
 
+    def on_sd_article():
+        return "sciencedirect.com/science/article/pii/" in (_safe(lambda: page.url, "") or "")
+
+    def find_href(pii):
+        for _ in range(5):  # 轮询等 "View PDF" 链接(带 md5+pid 令牌)渲染出来
+            h = _safe(lambda: page.eval_on_selector_all(
+                "a", "els=>{const a=els.find(e=>(e.href||'').includes('/%s/pdfft')); return a?a.href:null;}" % pii))
+            if h:
+                return h
+            page.wait_for_timeout(2000)
+        return None
+
+    # 先拿 PII：doi.org 常落到 linkinghub.elsevier.com 中转页(JS 跳 sciencedirect)，轮询取 PII。
     art = md.url or ("https://doi.org/" + md.doi)
-    if not _safe(lambda: page.goto(art, wait_until="domcontentloaded", timeout=60000)):
-        return None
+    _safe(lambda: page.goto(art, wait_until="domcontentloaded", timeout=60000))
     wait_cf()
-    m = _PII.search(_safe(lambda: page.url, "") or "")
-    if not m:
-        return None
-    pii = m.group(1)
-    # doi.org 常落在 linkinghub.elsevier.com 中转页(无 View PDF 链接)；规范化到 SD 文章页
-    if "sciencedirect.com/science/article/pii/" not in (_safe(lambda: page.url, "") or ""):
-        if not _safe(lambda: page.goto(
-                "https://www.sciencedirect.com/science/article/pii/" + pii,
-                wait_until="domcontentloaded", timeout=60000)):
-            return None
-        wait_cf()
-    # 轮询等 "View PDF" 链接渲染出来(带 md5+pid 令牌)；订阅文章才有，未订阅则一直没有
-    href = None
-    for _ in range(5):
-        href = _safe(lambda: page.eval_on_selector_all(
-            "a", "els=>{const a=els.find(e=>(e.href||'').includes('/%s/pdfft')); return a?a.href:null;}" % pii))
-        if href:
+    pii = None
+    for _ in range(8):
+        m = _PII.search(_safe(lambda: page.url, "") or "")
+        if m:
+            pii = m.group(1)
             break
-        page.wait_for_timeout(2000)
-    if not href:
+        page.wait_for_timeout(1500)
+    if not pii:
         return None
-    # 导航到 View PDF 链接 → Chrome 直接下载 PDF → 捕获 download 事件取字节
-    try:
-        with page.expect_download(timeout=45000) as di:
-            _safe(lambda: page.goto(href, timeout=20000))  # 触发下载会中断导航，正常
-        data = open(di.value.path(), "rb").read()
-    except Exception:
-        return None
-    if data and data[:5].startswith(b"%PDF"):
-        return data
+    canonical = "https://www.sciencedirect.com/science/article/pii/" + pii
+
+    # 整个"到文章页→取 View PDF 链接→捕获下载"重试若干次：linkinghub 的 JS 重定向会和我们的
+    # 导航撞车(ERR_ABORTED)而停在中转页，导航/渲染/下载都可能偶发抖动。先 about:blank 打断
+    # 中转页 JS，再导航到规范文章页，避免竞争。
+    for _ in range(3):
+        if not on_sd_article():
+            _safe(lambda: page.goto("about:blank", timeout=15000))
+            _safe(lambda: page.goto(canonical, wait_until="domcontentloaded", timeout=60000))
+            wait_cf()
+        href = find_href(pii)
+        if not href:
+            _safe(lambda: page.goto("about:blank", timeout=15000))  # 强制下轮重新加载文章页
+            continue
+        try:
+            with page.expect_download(timeout=45000) as di:
+                _safe(lambda: page.goto(href, timeout=20000))  # 触发下载会中断导航，正常
+            data = open(di.value.path(), "rb").read()
+            if data and data[:5].startswith(b"%PDF"):
+                return data
+        except Exception:
+            pass
+        _safe(lambda: page.goto("about:blank", timeout=15000))
     return None
 
 
