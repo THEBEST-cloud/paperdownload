@@ -11,6 +11,7 @@ ADAPTER_ENTRY = {
     "acs": "acs",
     "ieee": "ieee",
     "elsevier": "elsevier_web",
+    "science": "science",
 }
 
 ENTRY_MATCH = {

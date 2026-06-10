@@ -75,6 +75,22 @@ def fetch_bytes_in_page(page, url: str):
     return res.get("status", 0), res.get("ct", ""), data
 
 
+def capture_pdf_download(page, url: str, timeout: int = 45000):
+    """导航到一个会触发 PDF 下载的 URL(profile 已设 always_open_pdf_externally，PDF 直接下载
+    而非内嵌渲染)，捕获 download 事件并返回 PDF 字节。拿不到 PDF 返回 None。
+    用于 Atypon 的 ePDF/签名跳转链(Science/Elsevier 等)，绕开跨域 fetch 与签名 URL 捕获。"""
+    try:
+        with page.expect_download(timeout=timeout) as di:
+            try:
+                page.goto(url, timeout=20000)  # 触发下载会中断导航，正常
+            except Exception:
+                pass
+        data = open(di.value.path(), "rb").read()
+        return data if data[:5].startswith(b"%PDF") else None
+    except Exception:
+        return None
+
+
 @contextmanager
 def browser_context(headless: bool, base: Optional[Path] = None, headed_xvfb: bool = False):
     """打开持久化上下文：登录态(cookie/localStorage)保存在 .profile/ 里复用。

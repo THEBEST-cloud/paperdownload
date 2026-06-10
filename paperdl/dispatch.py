@@ -11,6 +11,7 @@ _DOI_PREFIXES = {
     "10.1029": "wiley",
     "10.3389": "frontiers",
     "10.1109": "ieee",
+    "10.1126": "science",
 }
 _PUBLISHER_KEYWORDS = {
     "springer": ["springer"],
@@ -20,6 +21,7 @@ _PUBLISHER_KEYWORDS = {
     "wiley": ["wiley"],
     "frontiers": ["frontiers media"],
     "ieee": ["ieee"],
+    "science": ["american association for the advancement of science", "aaas"],
 }
 
 
