@@ -654,6 +654,9 @@ function renderJobProgress(job) {
       actionCell =
         `<a class="btn btn-secondary btn-sm" href="${base}" target="_blank">预览</a> ` +
         `<a class="btn btn-secondary btn-sm" href="${base}&dl=1" download="${esc(it.file)}">下载</a>`;
+    } else if (it.status === "failed") {
+      actionCell =
+        `<button class="btn btn-danger btn-sm" onclick="retryItem('${esc(it.doi)}', this)">🔄 重试</button>`;
     }
     tr.innerHTML = `
       <td>${statusBadge(it.status)}</td>
@@ -680,20 +683,48 @@ async function retryFailed() {
     const res = await api("/api/jobs/" + currentJobId + "/retry", {method:"POST"});
     const data = await res.json();
     if (data.retrying > 0) {
-      document.getElementById("job-status-badge").dataset.status = "running";
-      if (pollTimer) clearInterval(pollTimer);
-      pollJob();
-      pollTimer = setInterval(() => {
-        const s = document.getElementById("job-status-badge").dataset.status;
-        if (s === "done" || s === "error") clearInterval(pollTimer);
-        else pollJob();
-      }, 2000);
+      startJobPolling();
     }
   } catch(e) {
     if (e.message !== "unauthorized") alert("重试请求失败: " + e);
   } finally {
     btn.disabled = false; btn.textContent = "🔄 重试失败";
   }
+}
+
+/* ── 单条重试 ── */
+async function retryItem(doi, btn) {
+  if (!currentJobId) return;
+  if (btn) { btn.disabled = true; btn.textContent = "重试中…"; }
+  try {
+    const res = await api("/api/jobs/" + currentJobId + "/retry-item", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({doi})
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert("重试失败：" + (err.detail || res.status));
+      if (btn) { btn.disabled = false; btn.textContent = "🔄 重试"; }
+      return;
+    }
+    startJobPolling();
+  } catch(e) {
+    if (e.message !== "unauthorized") alert("重试请求失败: " + e);
+    if (btn) { btn.disabled = false; btn.textContent = "🔄 重试"; }
+  }
+}
+
+/* 启动对当前任务的轮询，直到完成 */
+function startJobPolling() {
+  document.getElementById("job-status-badge").dataset.status = "running";
+  if (pollTimer) clearInterval(pollTimer);
+  pollJob();
+  pollTimer = setInterval(() => {
+    const s = document.getElementById("job-status-badge").dataset.status;
+    if (s === "done" || s === "error") clearInterval(pollTimer);
+    else pollJob();
+  }, 2000);
 }
 
 /* ── 删除当前任务（进度视图）── */

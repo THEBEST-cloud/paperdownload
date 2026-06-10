@@ -133,6 +133,20 @@ def api_retry(job_id: str, user: str = Depends(current_user)):
     return {"retrying": len(failed)}
 
 
+@app.post("/api/jobs/{job_id}/retry-item")
+def api_retry_item(job_id: str, payload: dict, user: str = Depends(current_user)):
+    job = mgr.get(job_id)
+    if not job or job.owner != user:
+        raise HTTPException(404, "not found")
+    if job.status == "running":
+        raise HTTPException(409, "任务正在运行，请稍候")
+    doi = (payload.get("doi") or "").strip()
+    if doi not in job.items:
+        raise HTTPException(404, "该 DOI 不在此任务中")
+    mgr.start(job, only_dois=[doi])
+    return {"retrying": 1, "doi": doi}
+
+
 @app.get("/api/jobs/{job_id}/file")
 def api_file(job_id: str, name: str, dl: int = 0, user: str = Depends(current_user)):
     job = mgr.get(job_id)
