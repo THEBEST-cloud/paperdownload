@@ -32,33 +32,51 @@ class DownloadContext:
     shib_done: set = field(default_factory=set)
 
 
-def ensure_shib_session(ctx: DownloadContext, adapter_key: str) -> None:
-    """对需要机构联邦登录的出版商(Nature/ACS 等)，每会话建立一次 Shibboleth 已认证会话。"""
+def _is_shib_adapter(adapter_key: str) -> bool:
+    from paperdl.shibboleth import ADAPTER_ENTRY
+    return adapter_key in ADAPTER_ENTRY
+
+
+# 会话类失败：Shibboleth 会话没建好/掉了；重建会话再试往往就好(尤其 ACS 的 SSO 偶发卡 IdP)。
+_SHIB_RETRY_REASONS = ("blocked", "no_access")
+
+
+def ensure_shib_session(ctx: DownloadContext, adapter_key: str, force: bool = False) -> bool:
+    """对需要机构联邦登录的出版商(Nature/ACS/Elsevier/IEEE)建立 Shibboleth 已认证会话。
+    成功(落到出版商域名)返回 True。force=True 时忽略已建标记、强制重建。"""
     from paperdl.shibboleth import ADAPTER_ENTRY, fetch_entries, ensure_session
     entry_key = ADAPTER_ENTRY.get(adapter_key)
-    if not entry_key or ctx.page is None or not ctx.cid or adapter_key in ctx.shib_done:
-        return
+    if not entry_key or ctx.page is None or not ctx.cid:
+        return False
+    if adapter_key in ctx.shib_done and not force:
+        return True
     try:
         if ctx.shib_entries is None:
             ctx.shib_entries = fetch_entries(ctx.page)
         url = ctx.shib_entries.get(entry_key)
         if not url:
             ctx.shib_done.add(adapter_key)
-            return
+            return False
         # SSO 偶发卡在 IdP(SAML 回 POST 没走完)；多试几次直到落到出版商域名。
         for _ in range(3):
             if ensure_session(ctx.page, url, ctx.cid, ctx.pw):
-                break
+                ctx.shib_done.add(adapter_key)
+                return True
     except Exception:
         pass
-    ctx.shib_done.add(adapter_key)  # 建过会话(成或试满)后本会话不再重复
+    return False  # 没落地就不标 done，留待重建
 
 
 def download_one(md: Metadata, adapter_key: Optional[str], ctx: DownloadContext) -> ResultRow:
     result = None
     if adapter_key is not None and adapter_key in ctx.adapters:
-        ensure_shib_session(ctx, adapter_key)
-        result = ctx.adapters[adapter_key].download(ctx.page, md)
+        is_shib = _is_shib_adapter(adapter_key)
+        # shib 适配器：会话类失败时重建会话再试一次(自愈 ACS 等 SSO 偶发卡顿)
+        for attempt in range(2):
+            ensure_shib_session(ctx, adapter_key, force=(attempt > 0))
+            result = ctx.adapters[adapter_key].download(ctx.page, md)
+            if result.ok or not is_shib or result.reason not in _SHIB_RETRY_REASONS:
+                break
     # OA 兜底：主适配器失败/无适配器/只拿到预览时，用 Unpaywall 捞开放获取全文
     if (result is None or not result.ok) and adapter_key != "unpaywall" and "unpaywall" in ctx.adapters:
         oa = ctx.adapters["unpaywall"].download(ctx.page, md)
