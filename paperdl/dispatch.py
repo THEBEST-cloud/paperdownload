@@ -12,6 +12,7 @@ _DOI_PREFIXES = {
     "10.3389": "frontiers",
     "10.1109": "ieee",
     "10.1126": "science",
+    "10.1073": "pnas",
 }
 _PUBLISHER_KEYWORDS = {
     "springer": ["springer"],
