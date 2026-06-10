@@ -12,6 +12,7 @@ ADAPTER_ENTRY = {
     "ieee": "ieee",
     "elsevier": "elsevier_web",
     "science": "science",
+    "wiley": "wiley_web",
 }
 
 ENTRY_MATCH = {
