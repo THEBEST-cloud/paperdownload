@@ -137,6 +137,16 @@ class JobManager:
             list_path.write_text("\n".join(todo) + "\n", encoding="utf-8")
             store = ResultStore(d / "results.csv")
             job.status = "running"
+            job.current = ""
+            # 把要(重新)下载的条目标回"等待"，让进度条/计数立刻回退，UI 能看出重试已开始
+            for doi in todo:
+                if doi in job.items:
+                    job.items[doi]["status"] = "pending"
+                    job.items[doi]["reason"] = ""
+            job.success = sum(1 for x in job.items.values() if x["status"] == "success")
+            job.failed = sum(1 for x in job.items.values() if x["status"] == "failed")
+            job.done = sum(1 for x in job.items.values() if x["status"] in ("success", "failed"))
+            self._persist(job)
 
             def progress(i, total, row):
                 it = job.items.get(row.doi) or asdict(JobItem(doi=row.doi))
