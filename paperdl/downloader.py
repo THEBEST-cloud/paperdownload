@@ -16,7 +16,7 @@ DELAY_MAX = 20
 MAX_PER_RUN = 50
 RETRIES = 2
 # 这些失败是终态，重试无意义；尤其 blocked 再快速重试会加剧对共享机构 IP 的封锁风险。
-TERMINAL_REASONS = ("no_adapter", "no_access", "no_pdf", "blocked", "no_api_key")
+TERMINAL_REASONS = ("no_adapter", "no_access", "no_pdf", "blocked", "no_api_key", "elsevier_preview")
 
 
 @dataclass
@@ -50,12 +50,18 @@ def ensure_shib_session(ctx: DownloadContext, adapter_key: str) -> None:
 
 
 def download_one(md: Metadata, adapter_key: Optional[str], ctx: DownloadContext) -> ResultRow:
-    if adapter_key is None or adapter_key not in ctx.adapters:
+    result = None
+    if adapter_key is not None and adapter_key in ctx.adapters:
+        ensure_shib_session(ctx, adapter_key)
+        result = ctx.adapters[adapter_key].download(ctx.page, md)
+    # OA 兜底：主适配器失败/无适配器/只拿到预览时，用 Unpaywall 捞开放获取全文
+    if (result is None or not result.ok) and adapter_key != "unpaywall" and "unpaywall" in ctx.adapters:
+        oa = ctx.adapters["unpaywall"].download(ctx.page, md)
+        if oa.ok:
+            result = oa
+    if result is None:
         return ResultRow(doi=md.doi, publisher=md.publisher, title=md.title,
                          status="failed", reason="no_adapter", file_path="")
-    adapter = ctx.adapters[adapter_key]
-    ensure_shib_session(ctx, adapter_key)
-    result = adapter.download(ctx.page, md)
     if not result.ok:
         return ResultRow(doi=md.doi, publisher=md.publisher, title=md.title,
                          status="failed", reason=result.reason, file_path="")

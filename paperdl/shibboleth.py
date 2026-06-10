@@ -10,6 +10,7 @@ ADAPTER_ENTRY = {
     "nature": "nature",
     "acs": "acs",
     "ieee": "ieee",
+    "elsevier": "elsevier_web",
 }
 
 ENTRY_MATCH = {
@@ -29,6 +30,21 @@ _CONSENT_SUBMIT = """() => {
   if(!f.querySelector("[name='_eventId_proceed']")){const h=document.createElement('input');h.type='hidden';h.name='_eventId_proceed';h.value='1';f.appendChild(h);}
   f.submit(); return 'OK';
 }"""
+
+# IdP 中转有时是一个自动提交的 SAMLResponse 表单(无同意按钮)；原生提交它继续跳转。
+_AUTOPOST_SUBMIT = """() => {
+  const f=document.querySelector("form");
+  if(f && document.querySelector("input[name='SAMLResponse'],input[name='RelayState']")){f.submit();return 'POST';}
+  return 'NO';
+}"""
+
+# 这些域名/路径是 SSO 中转态，需继续等待(不是终态)。Atypon(ACS/Science/ACM)的同意分两步
+# (e1s1/e1s2)，每步都要原生提交 _eventId_proceed，全程可能经过多个中转 URL。
+_RELAY_MARKERS = ("passport.escience.cn/idp", "action/ssostart", "/idp/",
+                  "shibboleth.sso", "deliverinstcredentials", "authenticatesharedsp",
+                  "/user/router/shib", "/saml", "wayf", "openathens", "federation/init",
+                  # Elsevier 联邦登录最后还要过 id.elsevier.com 的 OAuth 授权中转才落 ScienceDirect
+                  "id.elsevier.com", "authorization.oauth2")
 
 
 def fetch_entries(page) -> dict:
@@ -63,34 +79,35 @@ def _safe(fn, default=""):
         return default
 
 
+def _is_relay(url: str) -> bool:
+    u = (url or "").lower()
+    return any(m in u for m in _RELAY_MARKERS)
+
+
 def ensure_session(page, entry_url: str, cid: str, pw: str) -> bool:
-    """走出版商 Shibboleth 入口建立已认证会话(OAuth 自动 SSO + 同意页原生提交)。成功返回 True。"""
+    """走出版商 Shibboleth 入口建立已认证会话。成功(落到出版商域名)返回 True。
+
+    通用流程，覆盖 SpringerLink / Nature / Elsevier(ShibAuth) / Atypon(ACS/Science/ACM,
+    两步同意 e1s1+e1s2) / IEEE 等：①auto_login 建 portal 会话 ②走入口 ③循环：发现同意按钮
+    (_eventId_proceed)就原生提交；在 IdP 上无按钮则提交自动 POST 表单(SAMLResponse)；仍在
+    任意中转态则继续等；落到真实出版商域名即完成。
+    """
     auto_login(page, cid, pw, timeout=45000)
     page.goto(entry_url, wait_until="domcontentloaded", timeout=60000)
-    # 等 OAuth iframe 自动 SSO
-    for _ in range(20):
-        page.wait_for_timeout(2000)
-        t = _safe(page.title)
+    for _ in range(24):
+        page.wait_for_timeout(1800)
         u = _safe(lambda: page.url)
-        if "Information Release" in t:
-            break
-        if u and "passport.escience.cn/idp" not in u:
-            break
-        if "Uncaught" in t:
+        if "Uncaught" in _safe(page.title):
             return False
-    # 同意页 / SAML 中转
-    for _ in range(5):
-        t = _safe(page.title)
         proceed = _safe(lambda: page.query_selector("[name='_eventId_proceed']"), None)
-        c = _safe(page.content)
-        if "Information Release" in t or proceed:
+        if proceed:
             _safe(lambda: page.evaluate(_CONSENT_SUBMIT), None)
-            page.wait_for_timeout(3500)
-        elif "SAMLResponse" in c:
-            sb = _safe(lambda: page.query_selector("input[type=submit],button[type=submit]"), None)
-            if sb:
-                _safe(sb.click, None)
-            page.wait_for_timeout(2500)
-        else:
-            break
-    return "passport.escience.cn/idp" not in _safe(lambda: page.url, "")
+            continue
+        if "passport.escience.cn/idp" in (u or ""):
+            # IdP 上但没有同意按钮 → 可能是自动提交的 SAMLResponse 中转表单
+            _safe(lambda: page.evaluate(_AUTOPOST_SUBMIT), None)
+            continue
+        if _is_relay(u):
+            continue  # 其它中转态(ssostart/router/shib 等)，继续等跳转
+        break  # 落到真实出版商域名
+    return not _is_relay(_safe(lambda: page.url, ""))

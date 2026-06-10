@@ -5,7 +5,7 @@ from pathlib import Path
 from paperdl.downloader import DownloadContext, run, MAX_PER_RUN
 from paperdl.results import ResultStore
 from paperdl.session import browser_context, run_login
-from paperdl.adapters import springer, elsevier, nature, acs, rsc, wiley, crossref, frontiers, ieee
+from paperdl.adapters import springer, elsevier, nature, acs, rsc, wiley, crossref, frontiers, ieee, unpaywall
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -29,7 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 # 已注册的适配器
-ADAPTERS = {"springer": springer, "elsevier": elsevier, "nature": nature, "acs": acs, "rsc": rsc, "wiley": wiley, "crossref": crossref, "frontiers": frontiers, "ieee": ieee}
+ADAPTERS = {"springer": springer, "elsevier": elsevier, "nature": nature, "acs": acs, "rsc": rsc, "wiley": wiley, "crossref": crossref, "frontiers": frontiers, "ieee": ieee, "unpaywall": unpaywall}
 
 
 def _do_run(list_path: str, max_per_run: int, show: bool = False) -> None:

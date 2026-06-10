@@ -3,7 +3,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
 
-from playwright.sync_api import sync_playwright
+# patchright 是 Playwright 的隐身分支：运行时打掉 CDP 暴露的自动化痕迹，配合真实 Chrome
+# 能过 Cloudflare 的 "Just a moment" 挑战(ScienceDirect/ACS/Science 等)。API 与 playwright 完全兼容。
+from patchright.sync_api import sync_playwright
 
 from paperdl.credentials import load_credentials
 
@@ -33,6 +35,46 @@ def profile_dir(base: Optional[Path] = None) -> Path:
     return base / ".profile"
 
 
+def _ensure_pdf_download_pref(pdir: Path) -> None:
+    """让 Chrome 直接下载 PDF 而非内嵌渲染。Elsevier 走 ScienceDirect 时要靠"导航到 PDF→
+    触发下载"来捕获字节(签名 URL 跨域、单次有效，截获+fetch 都不稳)。对其它适配器无影响
+    (它们用 page.request/httpx/页内 fetch，不靠导航渲染)。"""
+    import json
+    pref = pdir / "Default" / "Preferences"
+    try:
+        pref.parent.mkdir(parents=True, exist_ok=True)
+        data = json.loads(pref.read_text()) if pref.exists() else {}
+        data.setdefault("plugins", {})["always_open_pdf_externally"] = True
+        data.setdefault("download", {})["prompt_for_download"] = False
+        pref.write_text(json.dumps(data))
+    except Exception:
+        pass
+
+
+# 在页面里用浏览器自身的 fetch 取二进制并转 base64。
+# 关键：page.request(Node 侧)的 TLS 指纹与浏览器不同，Cloudflare 会对其 cf_clearance 报 403；
+# 而页内 fetch 走浏览器栈，指纹+cf_clearance 一致，能过。用于 Atypon(ACS/Science 等)取 PDF。
+_FETCH_B64_JS = """async (url) => {
+  try {
+    const resp = await fetch(url, {credentials:'include'});
+    const buf = await resp.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let bin=''; const C=0x8000;
+    for(let i=0;i<bytes.length;i+=C){ bin+=String.fromCharCode.apply(null, bytes.subarray(i,i+C)); }
+    return {status:resp.status, ct:(resp.headers.get('content-type')||''), b64:btoa(bin)};
+  } catch(e) { return {status:0, ct:'', b64:'', err:String(e)}; }
+}"""
+
+
+def fetch_bytes_in_page(page, url: str):
+    """通过当前页面的浏览器上下文 fetch(url)，返回 (status, content_type, bytes)。失败 bytes 为 None。"""
+    import base64
+    res = page.evaluate(_FETCH_B64_JS, url)
+    b64 = res.get("b64") or ""
+    data = base64.b64decode(b64) if b64 else None
+    return res.get("status", 0), res.get("ct", ""), data
+
+
 @contextmanager
 def browser_context(headless: bool, base: Optional[Path] = None, headed_xvfb: bool = False):
     """打开持久化上下文：登录态(cookie/localStorage)保存在 .profile/ 里复用。
@@ -43,17 +85,17 @@ def browser_context(headless: bool, base: Optional[Path] = None, headed_xvfb: bo
         headless = False
     pdir = profile_dir(base)
     pdir.mkdir(parents=True, exist_ok=True)
-    disable_proxy()  # 进程级清代理，确保 Chromium 子进程不继承
+    _ensure_pdf_download_pref(pdir)  # 让 PDF 走下载而非内嵌渲染(Elsevier 取全文用)
+    disable_proxy()  # 进程级清代理，确保 Chrome 子进程不继承(代理走境外会被反爬/通行证拦)
     with sync_playwright() as pw:
+        # 用 patchright 自带的 patched Chromium(不设 channel)：既能过 Cloudflare 的隐身，
+        # 又与既有 .profile(playwright Chromium 所建)同源兼容，保住免短信的受信任登录态。
+        # 不要覆盖 user_agent / 加 --disable-blink-features 等参数——会削弱 patchright 隐身。
         ctx = pw.chromium.launch_persistent_context(
             user_data_dir=str(pdir),
             headless=headless,
+            no_viewport=True,
             accept_downloads=True,
-            user_agent=DESKTOP_UA,  # 去掉 HeadlessChrome 标识，过反爬
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-proxy-server",  # 直连，忽略任何代理
-            ],
         )
         try:
             yield ctx
