@@ -13,6 +13,7 @@ _DOI_PREFIXES = {
     "10.1109": "ieee",
     "10.1126": "science",
     "10.1073": "pnas",
+    "10.3934": "aims",
 }
 _PUBLISHER_KEYWORDS = {
     "springer": ["springer"],
