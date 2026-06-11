@@ -13,6 +13,7 @@ ADAPTER_ENTRY = {
     "elsevier": "elsevier_web",
     "science": "science",
     "wiley": "wiley_web",
+    "annualreviews": "annualreviews",
 }
 
 ENTRY_MATCH = {
@@ -24,6 +25,7 @@ ENTRY_MATCH = {
     "elsevier_web": "auth.elsevier.com/ShibAuth",
     "ieee": "ieeexplore.ieee.org/servlet/wayf",
     "acs": "pubs.acs.org",
+    "annualreviews": "annualreviews.org/session/ext/shib",
 }
 
 _CONSENT_SUBMIT = """() => {
