@@ -293,6 +293,7 @@
     </div>
     <div class="current-doi" id="current-doi"></div>
     <div class="action-row">
+      <button class="btn btn-primary btn-sm" id="btn-resume" onclick="resumeJob()" style="display:none">▶️ 继续下载</button>
       <button class="btn btn-danger btn-sm" id="btn-retry" onclick="retryFailed()" style="display:none">🔄 重试失败</button>
       <a class="btn btn-secondary btn-sm" id="btn-zip" href="#" style="display:none">📦 打包下载 ZIP</a>
       <button class="btn btn-danger btn-sm" id="btn-delete-current" onclick="deleteCurrentJob()" style="display:none">🗑 删除此任务</button>
@@ -618,9 +619,15 @@ function renderJobProgress(job) {
   badgeEl.innerHTML = statusBadge(job.status) + " &nbsp;" + fmtTime(job.created_at);
   badgeEl.dataset.status = job.status;
 
+  const finished = (job.status === "done" || job.status === "error");
+  // 继续按钮：任务结束但还有未处理(pending)的条目(被打断/中断)
+  const pending = (job.total || 0) - (job.done || 0);
+  const btnResume = document.getElementById("btn-resume");
+  btnResume.style.display = (finished && pending > 0) ? "" : "none";
+  if (btnResume.style.display === "") btnResume.textContent = `▶️ 继续下载 (剩 ${pending})`;
   // 重试按钮
   const btnRetry = document.getElementById("btn-retry");
-  if ((job.status === "done" || job.status === "error") && job.failed > 0) {
+  if (finished && job.failed > 0) {
     btnRetry.style.display = "";
   } else {
     btnRetry.style.display = "none";
@@ -689,6 +696,22 @@ async function retryFailed() {
     if (e.message !== "unauthorized") alert("重试请求失败: " + e);
   } finally {
     btn.disabled = false; btn.textContent = "🔄 重试失败";
+  }
+}
+
+/* ── 继续未完成的任务(续跑 pending + 失败) ── */
+async function resumeJob() {
+  if (!currentJobId) return;
+  const btn = document.getElementById("btn-resume");
+  btn.disabled = true; btn.textContent = "提交中…";
+  try {
+    const res = await api("/api/jobs/" + currentJobId + "/resume", {method:"POST"});
+    const data = await res.json();
+    if (data.resuming > 0) startJobPolling();
+  } catch(e) {
+    if (e.message !== "unauthorized") alert("继续请求失败: " + e);
+  } finally {
+    btn.disabled = false;
   }
 }
 

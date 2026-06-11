@@ -133,6 +133,22 @@ def api_retry(job_id: str, user: str = Depends(current_user)):
     return {"retrying": len(failed)}
 
 
+@app.post("/api/jobs/{job_id}/resume")
+def api_resume(job_id: str, user: str = Depends(current_user)):
+    """续跑未完成的任务：处理所有 pending(被打断没跑到的) + failed 条目。"""
+    job = mgr.get(job_id)
+    if not job or job.owner != user:
+        raise HTTPException(404, "not found")
+    if job.status in ("running", "queued"):
+        raise HTTPException(409, "任务正在运行")
+    todo = [doi for doi, it in job.items.items()
+            if it["status"] in ("pending", "failed")]
+    if not todo:
+        return {"resuming": 0}
+    mgr.start(job, only_dois=todo)
+    return {"resuming": len(todo)}
+
+
 @app.post("/api/jobs/{job_id}/retry-item")
 def api_retry_item(job_id: str, payload: dict, user: str = Depends(current_user)):
     job = mgr.get(job_id)
