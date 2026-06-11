@@ -144,6 +144,11 @@ def _browser_download(page, md: Metadata):
         wait_cf()
         href = find_href(pii)
         if not href:
+            # 文章没渲染出来：若标题还是通用 "ScienceDirect" 空壳(多半是被限流/降级)，
+            # 重试也没用，快速放弃，避免一篇磨好几分钟拖垮整批。
+            t = (_safe(page.title, "") or "").strip().lower()
+            if t == "sciencedirect" or t == "" or t.startswith("sciencedirect |"):
+                return None
             continue
         try:
             with page.expect_download(timeout=45000) as di:
