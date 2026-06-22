@@ -31,7 +31,30 @@
 
 ---
 
-## 安装
+## 用 Docker 跑（推荐分享 / 跨平台）
+
+容器内永远是 Linux + 内置 Xvfb，**macOS/Windows 只要装 Docker Desktop 就能用**，无需任何系统适配。所有持久化数据落在 `./data`。
+
+```bash
+# 0. 构建镜像（把宿主已下好的 patchright Chromium 烤进去；首次构建）
+bash scripts/docker-build.sh
+
+# 1. 首次配置 + 登录（交互式，各做一次）
+mkdir -p data
+docker compose run --rm -it paperdl config    # 填你自己的通行证账号/密钥
+docker compose run --rm -it paperdl doctor     # 自检
+docker compose run --rm -it paperdl login      # 一次性短信登录，会话存进 ./data/.profile
+
+# 2. 日常用
+docker compose up -d                                  # 网页版 http://<本机>:8200
+docker compose run --rm paperdl run /data/list.txt    # 命令行批量（清单放 ./data/list.txt）
+```
+
+分享给同事：`docker save paperdl:latest | gzip > paperdl.tar.gz`，对方 `docker load < paperdl.tar.gz` 即可，**无需重新 build**。每人用自己的 `./data`（配自己的账号、做自己的一次性登录）。
+
+> 已验证：**OA 文献**（MDPI 等）在容器内能过 Cloudflare 正常下载。**订阅文献**（Elsevier/ACS 等）需先在容器内 `paperdl login` 建立受信任会话——和新机器流程一样；首次登录后即可。
+
+## 安装（不用 Docker，直接装在 Linux 上）
 
 ```bash
 bash scripts/setup.sh

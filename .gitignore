@@ -9,3 +9,4 @@ downloadList/
 web_data/
 *.egg-info/
 .venv/
+.docker/

@@ -1,0 +1,21 @@
+# paperdl 容器编排。所有持久化数据(.paperdl.env / .profile / downloads / web_data / results.csv)
+# 都落在 ./data(挂到容器 /data，working_dir 也是 /data)。
+#
+# 首次(交互式，做一次):
+#   mkdir -p data
+#   docker compose run --rm -it paperdl config   # 填账号/密钥
+#   docker compose run --rm -it paperdl doctor    # 自检
+#   docker compose run --rm -it paperdl login     # 一次性短信登录
+# 日常:
+#   docker compose up -d                          # 网页版 http://<本机>:8200
+#   docker compose run --rm paperdl run /data/list.txt   # 命令行批量(把清单放 ./data/list.txt)
+services:
+  paperdl:
+    image: paperdl:latest
+    build: .
+    working_dir: /data
+    volumes:
+      - ./data:/data
+    ports:
+      - "8200:8200"
+    # 默认 CMD = serve --host 0.0.0.0 --port 8200
