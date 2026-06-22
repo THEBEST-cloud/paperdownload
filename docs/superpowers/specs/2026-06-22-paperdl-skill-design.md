@@ -12,8 +12,10 @@
 1. `paperdl config` —— 交互式配置向导（自己配账号，核心诉求）
 2. `paperdl doctor` —— 一键环境/状态自检
 3. 干净打包 + 一键 setup（换机器可复现）
-4. `paperdl mcp` —— MCP server（给任意 AI agent 调，**最后做**）
-5. 脱敏打包成 skill（SKILL.md 借鉴 scansci 结构）
+4. 脱敏打包成 skill（**Claude Code**：`SKILL.md`；**Codex**：`AGENTS.md`，二者同内容、共用一套 CLI）
+5. `paperdl mcp` —— MCP server（stdio，给任意 AI agent / Codex / Claude 结构化调用，**最后做**）
+
+**双 agent 适配**：一套 `app/`(CLI) + 两个指令文件（`SKILL.md` 给 Claude Code、`AGENTS.md` 给 Codex）+ 可选 MCP 后端（两边共用）。Codex 有 shell，基线靠 AGENTS.md 直接跑 CLI 即可，不依赖 MCP。
 
 ## 非目标（明确不做）
 
@@ -56,32 +58,38 @@
 - `scripts/setup.sh`：建独立 venv（或 uv）→ `pip install -e .` → `patchright install chromium` → 检查/提示 xvfb（`sudo apt install -y xvfb`）。
 - 运行产物（`.paperdl.env`/`.profile`/`downloads`/`web_data`/`results.csv`）放工作目录，不进 skill 包。
 
-### 4. `paperdl mcp` — MCP server（最后做）
+### 4. 脱敏打包成 skill / Codex 包（双 agent）
 
-- 用 `mcp`(FastMCP) 暴露少量工具：`download_dois(dois)`、`download_list(path)`、`config_status()`、`doctor()`、`job_status()`。
-- 复用 `downloader` + `browser_context`（同网页任务，跑在 Xvfb 浏览器）。
-- 可选依赖（`pip install paperdl[mcp]`），不装也不影响 CLI/web。
-
-### 5. 脱敏打包成 skill
-
-- 位置：个人目录 `~/.claude/skills/paperdl/`（最简单，可直接拷给同事；不做 plugin）。
+- 位置：个人目录 `~/.claude/skills/paperdl/`（最简单，可直接拷给同事；不做 plugin）。Codex 用户把同一目录当普通仓库用（读 `AGENTS.md`）。
 - 结构：
   ```
   paperdl/
-    SKILL.md            # 借鉴 scansci 结构：能力矩阵 + 命令参考 + 工作流配方 + 边界 + 排障 + 安装引导
+    SKILL.md            # Claude Code 入口。借鉴 scansci 结构：能力矩阵 + 命令参考 + 工作流配方 + 边界 + 排障 + 安装引导
+    AGENTS.md           # Codex 入口。与 SKILL.md 同内容(去掉 Claude 专属语法)，告诉 Codex 用 shell 跑 paperdl CLI
     app/                # 脱敏后的 paperdl 源码副本（pyproject/paperdl/scripts/tests/requirements）
     references/
       troubleshooting.md   # 代理坑/限流/短信/Shibboleth 各家坑（从记忆与本仓库经验整理）
       env.example          # 带注释、无值的 .paperdl.env 模板
+      codex-mcp.toml       # ~/.codex/config.toml 的 [mcp_servers.paperdl] 注册片段(阶段二用)
   ```
+- **SKILL.md 与 AGENTS.md 同源**：核心内容(命令参考/工作流/排障)写一份,两个入口文件各自加一小段 agent 专属头部。避免双份维护漂移。
 - **脱敏（打包脚本强制排除/清理）**：`.paperdl.env`、`.profile/`、`downloads/`、`web_data/`、`results.csv`、`*.csv`、`.git/`、`__pycache__/`、`.profile_*`；并扫描 `docs/`、`CLAUDE.md`、注释里是否残留个人邮箱/账号/手机号并清掉。
-- SKILL.md 触发描述（中英关键词）：下文献/DOI/批量下载/配置账号/中科院/CSTCloud 等。
+- 触发描述（中英关键词）：下文献/DOI/批量下载/配置账号/中科院/CSTCloud 等。
 - 机构相关常量（passport URL、las 入口匹配 ENTRY_MATCH）集中放一处并注明"中科院默认，改这里可换单位"——仅注释级，不做通用框架。
+
+### 5. `paperdl mcp` — MCP server（最后做，增强）
+
+- 用 `mcp`(FastMCP) **stdio 传输** 暴露少量工具：`download_dois(dois)`、`download_list(path)`、`config_status()`、`doctor()`、`job_status()`。
+- 复用 `downloader` + `browser_context`（同网页任务，跑在 Xvfb 浏览器）。
+- 可选依赖（`pip install paperdl[mcp]`），不装也不影响 CLI/web。
+- **Claude Code 接入**：`claude mcp add paperdl -- paperdl mcp`（或 `.mcp.json`）。
+- **Codex 接入**：把 `references/codex-mcp.toml` 的 `[mcp_servers.paperdl]`（command=paperdl 或 venv 绝对路径, args=["mcp"]）填进用户 `~/.codex/config.toml`。
+- 两边共用同一 MCP 后端。
 
 ## 分期
 
-1. **阶段一（先可用）**：① config + ② doctor + ③ 打包/setup + ⑤ skill 打包（含 SKILL.md、脱敏脚本、references）。交付：同事拿到能一键装+自己配账号+自检+跑下载。
-2. **阶段二**：④ MCP server。
+1. **阶段一（先可用，双 agent 基线）**：① config + ② doctor + ③ 打包/setup + ④ skill/Codex 包（`SKILL.md` + `AGENTS.md` + 脱敏脚本 + references）。交付：同事在 **Claude Code 或 Codex** 里拿到能一键装 + 自己配账号 + 自检 + 跑下载（靠 CLI，不依赖 MCP）。
+2. **阶段二（增强）**：⑤ MCP server + 两边的 MCP 接入说明，结构化调用。
 
 ## 安全
 
