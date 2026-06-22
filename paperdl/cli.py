@@ -21,6 +21,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("retry", help="仅重试上次失败的条目")
 
+    sub.add_parser("config", help="交互式配置账号/密钥（.paperdl.env）")
+    sub.add_parser("doctor", help="环境/登录/代理自检")
+
     sp = sub.add_parser("serve", help="启动网页前端")
     sp.add_argument("--host", default="127.0.0.1")
     sp.add_argument("--port", type=int, default=8000)
@@ -65,6 +68,13 @@ def main(argv=None) -> None:
         _do_run(args.list, args.max, args.show)
     elif args.command == "retry":
         _do_retry()
+    elif args.command == "config":
+        from paperdl.configure import run_config
+        run_config()
+    elif args.command == "doctor":
+        import sys
+        from paperdl.doctor import run_doctor
+        sys.exit(run_doctor())
     elif args.command == "serve":
         import uvicorn
         uvicorn.run("paperdl.web.app:app", host=args.host, port=args.port)
