@@ -1,0 +1,32 @@
+[project]
+name = "paperdl"
+version = "0.1.0"
+description = "按 DOI 批量下载文献（中科院 CSTCloud + Shibboleth + patchright）"
+requires-python = ">=3.10"
+dependencies = [
+    "playwright>=1.44",
+    "patchright>=1.50",
+    "httpx>=0.27",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "python-multipart>=0.0.9",
+    "openpyxl>=3.1",
+    "xlrd>=2.0.1",
+    "pandas>=2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+paperdl = "paperdl.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["paperdl*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
