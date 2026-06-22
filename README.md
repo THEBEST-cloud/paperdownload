@@ -1,107 +1,132 @@
 # paperdl
 
-按 DOI 清单批量下载文献的命令行工具。
+按 DOI 清单批量下载文献的工具（命令行 + 网页版）。面向**中科院**用户，通过中科院文献情报中心（las.ac.cn / 中国科技云通行证 CSTCloud）的机构订阅取全文。
 
-通过中科院文献情报中心（las.ac.cn / 中国科技云通行证）的机构权限下载。账号密码只存在本地 gitignore 的 `.paperdl.env`，不上传、不进代码库。
+- **覆盖 13 家主流出版商** + 两个开放获取兜底，订阅墙和 Cloudflare 都能过。
+- **账号密码只存本地** gitignore 的 `.paperdl.env`，不上传、不进代码库。
+- 命令行批量跑，或网页版点点鼠标。
 
-**已支持**：Springer、Nature、RSC（浏览器 + 机构 IP）、Elsevier、Wiley（官方 API/TDM，绕开 Cloudflare）。
+---
 
-**两种取全文机制**：
-- 浏览器型（Springer 等）：直连中科院网络 IP，出版商按机构 IP 放行全文。
-- API 型（Elsevier）：用官方 API key + 机构 IP，绕开 ScienceDirect 的 Cloudflare/Shibboleth 墙。
+## 它是怎么取到全文的
+
+机构访问**靠中科院通行证的 Shibboleth 联邦登录**（不是靠 IP）。难点是出版商普遍套了 Cloudflare 反爬，普通 HTTP 客户端即便带着有效 cookie 也会被 TLS 指纹识别而 403。paperdl 的做法：
+
+- **patchright**（隐身版 Chromium）过 Cloudflare 的 "Just a moment" 挑战；
+- 走通行证 **Shibboleth** 拿机构授权（含 Atypon 两步同意、Elsevier 的 id.elsevier OAuth 中转等坑都填平了）；
+- PDF 一律**通过浏览器自身下载/取字节**（指纹与 cf_clearance 一致），而非 Python 直连。
+
+部分出版商有更快的官方通道（Elsevier API、Wiley TDM），配了 key 就优先走；没配则自动走浏览器。开放获取的文章用 Unpaywall / Crossref 兜底。
+
+### 支持的出版商
+
+| 取全文方式 | 出版商（DOI 前缀） |
+|---|---|
+| Shibboleth 浏览器（机构订阅） | Elsevier `10.1016`、Wiley `10.1002/10.1111/10.1029`、Nature `10.1038`、Science `10.1126`、ACS `10.1021`、IEEE `10.1109`、Annual Reviews `10.1146` |
+| 浏览器 / IP 直通 | Springer `10.1007`、RSC `10.1039` |
+| 开放获取（无需登录） | Frontiers `10.3389`、PNAS `10.1073`、AIMS `10.3934`、MDPI `10.3390` |
+| 兜底 | Crossref / Unpaywall（任意 OA 可得的文章） |
+
+> 注：能否下到全文取决于**你机构的订阅范围**。机构没订的（如某些老回溯卷）会失败，需走馆际互借 / NSTL 文献传递。
+
+---
 
 ## 安装
 
 ```bash
-pip install -r requirements.txt
-python -m playwright install chromium
+bash scripts/setup.sh
 ```
 
-## 网页版（推荐给日常使用）
+脚本会：建独立虚拟环境 `.venv` → 装 paperdl 及依赖 → `patchright install chromium` → 检查 Xvfb（无图形界面的服务器需要：`sudo apt-get install -y xvfb`）。
+
+装好后命令是 `paperdl`（或 `.venv/bin/paperdl`）。
+
+---
+
+## 快速上手（命令行）
 
 ```bash
-python -m paperdl serve            # 默认 http://127.0.0.1:8000
-python -m paperdl serve --host 0.0.0.0 --port 8000   # 对外暴露
+paperdl config      # ① 交互式填账号/密钥，生成 .paperdl.env（只填你自己的）
+paperdl doctor      # ② 一键自检：依赖/chromium/xvfb/配置/代理/登录态
+paperdl login       # ③ 首次登录（陌生设备会要一次性短信验证；之后约 10 天免登录）
+paperdl run list.txt # ④ 按清单批量下载
 ```
 
-浏览器打开后：粘贴 DOI 或上传 Excel/txt → 解析 → 开始下载 → 实时进度表（每篇状态/原因）→
-成功的可"打开PDF"预览 → "重试失败" → "打包下载ZIP"；左侧有历史任务记录。
-登录会话和 API key 仍复用 `.paperdl.env` / `.profile`，无需在网页里重填。
-
-> 服务器无图形界面时，在本地电脑用 SSH 端口转发再开浏览器：
-> `ssh -L 8000:localhost:8000 用户@服务器`，然后本地访问 http://localhost:8000
-> （若本地浏览器配了代理，给 localhost 加直连/绕过规则）。
-
-## 命令行用法
-
-**第一步（只做一次）：填账号密码**
+- **`paperdl config`**：逐项引导。必填**中科院通行证账号/密码**；Elsevier API key、Wiley TDM token、SMTP 邮件等都是**可选**（留空就走浏览器/不用邮件）。密码不回显、文件 `chmod 600`、绝不内置任何人的默认值。
+- **`paperdl doctor`**：新机器或出问题时先跑它，逐项 ✅/⚠️/❌ 给修复提示。
+- **`paperdl login`**：弹浏览器自动用 `.paperdl.env` 登录通行证；弹验证码/机构二次登录时按提示点一下。
+- **`paperdl run list.txt`**：清单为纯文本每行一个 DOI（兼容 csv 取第一列、跳表头）。默认单次上限 50、每篇间隔 8–20 秒（合规限速，别去掉）。PDF 存 `downloads/`，每篇结果记 `results.csv`，重复跑自动跳过已成功的。
 
 ```bash
-cp .paperdl.env.example .paperdl.env
-# 编辑 .paperdl.env，填入你的中国科技云通行证账号(中科院邮箱)和密码
+paperdl run list.txt --max 10   # 自定义单次上限
+paperdl retry                   # 只重试上次失败的条目
 ```
 
-`.paperdl.env` 已被 git 忽略，只存在你本地，不上传、不进代码库。也可以改用环境变量 `CSTCLOUD_ID` / `CSTCLOUD_PASSWORD`（优先级高于文件）。
+清单示例：
+```
+10.1016/j.watres.2021.117056
+10.1126/science.aap8826
+10.3390/atmos15111345
+```
 
-下 Elsevier 文献还需在 `.paperdl.env` 填一个免费的 Elsevier API key（在 https://dev.elsevier.com 申请）：`ELSEVIER_API_KEY=...`。全文权限靠机构 IP；若仅 key 取不到全文，再向图书馆要机构令牌填 `ELSEVIER_INSTTOKEN=`。
+---
 
-**第二步：登录（每隔约 10 天会话过期后重做一次）**
+## 网页版（推荐日常用）
 
 ```bash
-python -m paperdl login
+paperdl serve --host 0.0.0.0 --port 8200
 ```
 
-会弹出浏览器并**自动**用 `.paperdl.env` 里的账号密码登录通行证（勾选"10天保持登录"）：
-- 正常情况：提示"✅ 自动登录成功"，你不用动。
-- 万一弹了验证码/二次验证：提示你在浏览器里手动点一下（不会卡死）。
-- 如某出版商点进去还要"机构登录"，此时在浏览器里点一次。
+浏览器打开后：粘贴 DOI 或上传 Excel/txt → 解析 → 开始下载 → 实时进度表（每篇状态/原因）→ 成功的可预览/下载 PDF → 失败的有「🔄 重试」→ 任务被中断后有「▶️ 继续下载」续跑剩余 → 打包 ZIP / 发到邮箱；左侧有历史任务。复用 `.paperdl.env` / `.profile`，无需在网页里重填。多人使用支持各自账号登录。
 
-完成后回终端按回车保存会话。
+> 服务器无图形界面时，本地用 SSH 端口转发再开浏览器：
+> `ssh -L 8200:localhost:8200 用户@服务器`，本地访问 http://localhost:8200
+> （本地浏览器若配了代理，给 localhost 加直连/绕过规则）。
 
-**第二步：准备 DOI 清单**
-
-纯文本，每行一个 DOI（也兼容 csv，取第一列、自动跳过表头）：
-
-```
-10.1007/s00339-021-04567-w
-10.1007/s11431-020-1234-5
-```
-
-**第三步：下载**
-
-```bash
-python -m paperdl run mylist.txt          # 默认单次最多 50 篇，每篇间隔 8–20 秒
-python -m paperdl run mylist.txt --max 10 # 自定义单次上限
-python -m paperdl retry                   # 只重试上次失败的条目
-```
-
-PDF 存到 `downloads/`，每篇结果（成功/失败及原因）记到 `results.csv`。重复跑会自动跳过已成功的。
+---
 
 ## 失败原因（results.csv 的 reason 列）
 
-| reason | 含义 |
+| reason | 含义 / 处理 |
 |---|---|
-| `no_adapter` | 该出版商还没适配（目前支持 Springer、Elsevier） |
-| `no_access` | 无机构权限/被要求重新登录（Elsevier 多为缺机构令牌） |
-| `no_pdf` | 没找到 PDF（或 Elsevier API 只返回全文 XML 非 PDF） |
-| `blocked` | 拿到的不是 PDF（疑似反爬拦截） |
-| `timeout` | 页面或下载超时（会自动重试 2 次） |
+| `no_access` | 无机构权限（机构没订这篇）→ 馆际互借 / NSTL |
+| `elsevier_preview` | Elsevier 只返回首页预览（无 insttoken 或被**限流**）→ 见下方排障 |
+| `no_pdf` | 没找到 PDF 直链 |
+| `blocked` | 拿到的不是 PDF（疑似反爬/会话未建好）→ 重试一次往往就好 |
+| `timeout` | 页面或下载超时（自动重试 2 次） |
+| `no_adapter` | 该 DOI 前缀还没适配 |
 | `metadata_error` | Crossref 解析该 DOI 失败 |
-| `no_api_key` | 该出版商需要 API key 但 .paperdl.env 未配置 |
 
-## 现状
+更多排障（代理坑 / 限流冷却 / 短信绑定 / Shibboleth 偶发卡 IdP / Xvfb）见 `skill/references/troubleshooting.md`。
 
-- ✅ 已端到端验证：框架、Crossref 解析、限速/重试/去重、通行证自动登录（含一次性短信设备验证）、直连绕代理、**Springer / Nature / RSC**（浏览器/IP）、**Elsevier / Wiley**（官方 API/TDM）。
-- ⚠️ 暂未做（反爬硬墙、无干净路径）：ACS（Cloudflare，无公开全文 API）、IOP（Radware）、APS（Cloudflare）；IEEE（Xplore 的 JS viewer，较复杂）。
-- 🔜 后续：国内库 CNKI/万方/维普、NSTL 文献传递兜底。
+> **关于 Elsevier 限流**：短时间反复下同一篇会触发 ScienceDirect 风控、返回空壳预览页（`elsevier_preview`）。保持默认限速、别反复重试，停手几十分钟到几小时会自动恢复。
 
-## 出版商难度速查
+---
 
-| 类型 | 出版商 | 说明 |
-|---|---|---|
-| IP 直通（浏览器） | Springer(10.1007)、Nature(10.1038)、RSC(10.1039) | 直连机构 IP 即可，最简单 |
-| 官方 API/令牌 | Elsevier(10.1016, `ELSEVIER_API_KEY`)、Wiley(10.1002/10.1111, `WILEY_TDM_TOKEN`) | 绕开反爬墙；需在 .paperdl.env 配 key/令牌 |
-| 反爬硬墙（未做） | ACS(10.1021)、IOP(10.1088)、APS(10.1103) | Cloudflare/Radware，无头爬不动，无公开 API |
-| 较复杂（未做） | IEEE(10.1109) | JS viewer，PDF 取得需额外工作 |
+## 安全与合规
 
-设计与计划见 `docs/superpowers/`。
+- 凭证只存本地 `.paperdl.env`（`chmod 600`），登录态存 `.profile/`，均 gitignore，不上传。
+- **限速 8–20 秒/篇、单次有上限**，避免触发出版商风控、连累机构 IP。
+- 只走机构合规渠道，**不做 Sci-Hub 之类第三方源**。
+
+---
+
+## 做成 Skill / Codex 包（分享给同事）
+
+把整套脱敏打包成一个自包含目录，同事在 **Claude Code 或 Codex** 里都能用：
+
+```bash
+python scripts/make_skill.py ~/.claude/skills/paperdl
+```
+
+产物含 `SKILL.md`（Claude Code 入口）、`AGENTS.md`（Codex 入口）、脱敏后的源码 `app/`、`references/`（排障 + `.paperdl.env` 模板）。打包用白名单机制，**绝不带任何人的 `.paperdl.env` / `.profile` / 下载文件 / 账号库**。每个人拿到后用 `paperdl config` 配自己的账号。
+
+---
+
+## 开发
+
+```bash
+/home/hoo/.conda/envs/res-agent/bin/python3 -m pytest -q   # 跑测试
+```
+
+设计与实施文档见 `docs/superpowers/`。代码结构：`paperdl/`（cli / session / shibboleth / downloader / adapters / web / configure / doctor），`scripts/`（setup.sh / make_skill.py），`skill/`（SKILL.md / AGENTS.md / references）。
