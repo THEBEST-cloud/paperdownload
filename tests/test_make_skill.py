@@ -35,3 +35,4 @@ def test_build_app_includes_source_excludes_secrets(tmp_path):
     assert list(dest.rglob("users.json")) == []
     assert list(dest.rglob("results.csv")) == []
     assert list(dest.rglob("*.pyc")) == []          # 跳过缓存
+    assert list(dest.rglob(".profile")) == []      # .profile 目录本身也不应出现

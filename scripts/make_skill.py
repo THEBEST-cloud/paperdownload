@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 
 # 只把运行所需的顶层项拷进 app/
+# 注意：scripts/ 被白名单包括，因此整个 scripts/ 目录树会被拷贝。
+# 贡献者必须确保 scripts/ 下绝不放置密钥文件 — 白名单只保护根目录的密钥文件/目录。
 APP_INCLUDE = ("paperdl", "tests", "scripts", "pyproject.toml", "requirements.txt")
 # 树内仍要跳过的
 _SKIP_NAMES = {"__pycache__", ".pytest_cache"}
