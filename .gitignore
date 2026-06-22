@@ -7,3 +7,5 @@ __pycache__/
 .paperdl.env
 downloadList/
 web_data/
+*.egg-info/
+.venv/
