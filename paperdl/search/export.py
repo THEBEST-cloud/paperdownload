@@ -28,7 +28,9 @@ def _cite_key(p: Paper) -> str:
     """生成 BibTeX cite key（作者姓氏_年份_标题首词）。"""
     surname = "anon"
     if p.authors:
-        surname = re.sub(r"\W+", "", p.authors[0].split()[-1]) or "anon"
+        parts = p.authors[0].split()
+        surname = re.sub(r"\W+", "", parts[-1]) if parts else ""
+        surname = surname or "anon"
     year = str(p.year) if p.year else "nd"
     first = re.sub(r"\W+", "", (p.title.split()[0] if p.title else "")) or "x"
     return "%s_%s_%s" % (surname, year, first)

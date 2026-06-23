@@ -5,7 +5,7 @@ from typing import Optional, Protocol
 @dataclass
 class Paper:
     title: str = ""
-    authors: list = field(default_factory=list)
+    authors: list[str] = field(default_factory=list)
     year: Optional[int] = None
     venue: str = ""
     doi: Optional[str] = None

@@ -50,6 +50,11 @@ def test_parse_response_maps_fields():
     assert page.results[1].abstract == ""
 
 
+def test_build_params_sort_year():
+    p = build_params(SearchQuery(query="x", sort="year"), mailto=None)
+    assert p["sort"] == "publication_date:desc"
+
+
 def test_search_uses_injected_client(monkeypatch):
     data = json.loads(FIX.read_text(encoding="utf-8"))
 

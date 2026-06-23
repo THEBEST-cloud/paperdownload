@@ -3,6 +3,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Response, Cookie, Depends
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -227,9 +228,12 @@ def api_search(q: str, year_from: int = None, year_to: int = None,
                oa: bool = False, sort: str = "relevance", type: str = "article",
                page: int = 1, per_page: int = 25, user: str = Depends(current_user)):
     src = get_source()
-    sp = src.search(SearchQuery(query=q, year_from=year_from, year_to=year_to,
-                                oa_only=oa, work_type=type, sort=sort,
-                                page=page, per_page=min(per_page, 200)))
+    try:
+        sp = src.search(SearchQuery(query=q, year_from=year_from, year_to=year_to,
+                                    oa_only=oa, work_type=type, sort=sort,
+                                    page=page, per_page=min(per_page, 200)))
+    except httpx.HTTPError as e:
+        raise HTTPException(502, "检索服务暂时不可用：%s" % e)
     return {"results": [asdict(p) for p in sp.results],
             "total": sp.total, "page": sp.page, "per_page": sp.per_page}
 

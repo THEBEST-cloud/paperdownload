@@ -36,7 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     ps.add_argument("--from", dest="year_from", type=int, default=None, help="起始年份")
     ps.add_argument("--to", dest="year_to", type=int, default=None, help="结束年份")
     ps.add_argument("--oa", action="store_true", help="仅开放获取")
-    ps.add_argument("--sort", choices=["relevance", "cited", "year"], default="relevance")
+    ps.add_argument("--sort", choices=["relevance", "cited", "year"], default="relevance", help="排序方式")
     ps.add_argument("--type", dest="work_type", default="article", help="文献类型(默认 article)")
     ps.add_argument("-n", "--num", type=int, default=25, help="结果数量(<=200)")
     ps.add_argument("-o", "--out", default=None, help="导出 DOI 清单到文件")

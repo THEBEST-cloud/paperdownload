@@ -1,4 +1,5 @@
 # tests/test_search_web.py
+import httpx
 import paperdl.web.app as webapp
 from paperdl.search.base import Paper, SearchPage
 from fastapi.testclient import TestClient
@@ -33,5 +34,41 @@ def test_export_route(monkeypatch):
                          "format": "doi"})
         assert r.status_code == 200
         assert "10.1/x" in r.text
+    finally:
+        webapp.app.dependency_overrides.clear()
+
+
+def test_download_route(monkeypatch):
+    class FakeJob:
+        id = "job-xyz"
+
+    class FakeMgr:
+        def create(self, *a, **k):
+            return FakeJob()
+
+        def start(self, job):
+            pass
+
+    monkeypatch.setattr(webapp, "mgr", FakeMgr())
+    c = _login_client(monkeypatch)
+    try:
+        r = c.post("/api/search/download", json={"dois": ["10.1/x", "10.2/y"]})
+        assert r.status_code == 200
+        assert r.json()["job_id"] == "job-xyz"
+    finally:
+        webapp.app.dependency_overrides.clear()
+
+
+def test_search_502_on_httpx_error(monkeypatch):
+    # 模拟检索源抛出 httpx 网络错误，路由应返回 502
+    class BrokenSource:
+        def search(self, q):
+            raise httpx.ConnectError("boom")
+
+    monkeypatch.setattr(webapp, "get_source", lambda *a, **k: BrokenSource())
+    c = _login_client(monkeypatch)
+    try:
+        r = c.get("/api/search", params={"q": "x"})
+        assert r.status_code == 502
     finally:
         webapp.app.dependency_overrides.clear()

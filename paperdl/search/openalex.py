@@ -74,7 +74,7 @@ def parse_response(data: dict) -> SearchPage:
             oa_url=oa.get("oa_url"),
         ))
     total = (data.get("meta") or {}).get("count", 0) or 0
-    return SearchPage(results=out, total=total, page=0, per_page=len(out))
+    return SearchPage(results=out, total=total, page=1, per_page=len(out))
 
 
 class OpenAlexSource:
