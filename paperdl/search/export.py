@@ -1,14 +1,20 @@
+# paperdl/search/export.py
+# 论文数据导出格式转换（DOI 列表、CSV、BibTeX）
 import csv
 import io
 import re
 
+from paperdl.search.base import Paper
 
-def to_doi_list(papers: list) -> str:
+
+def to_doi_list(papers: list[Paper]) -> str:
+    """提取所有论文的 DOI 列表。"""
     lines = [p.doi for p in papers if p.doi]
     return "\n".join(lines) + ("\n" if lines else "")
 
 
-def to_csv(papers: list) -> str:
+def to_csv(papers: list[Paper]) -> str:
+    """导出论文列表为 CSV 格式。"""
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["title", "authors", "year", "venue", "doi", "cited_by", "is_oa", "type"])
@@ -18,7 +24,8 @@ def to_csv(papers: list) -> str:
     return buf.getvalue()
 
 
-def _cite_key(p) -> str:
+def _cite_key(p: Paper) -> str:
+    """生成 BibTeX cite key（作者姓氏_年份_标题首词）。"""
     surname = "anon"
     if p.authors:
         surname = re.sub(r"\W+", "", p.authors[0].split()[-1]) or "anon"
@@ -27,7 +34,8 @@ def _cite_key(p) -> str:
     return "%s_%s_%s" % (surname, year, first)
 
 
-def to_bibtex(papers: list) -> str:
+def to_bibtex(papers: list[Paper]) -> str:
+    """导出论文列表为 BibTeX 格式。"""
     blocks = []
     for p in papers:
         fields = []
