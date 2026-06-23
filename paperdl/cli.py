@@ -6,6 +6,9 @@ from paperdl.downloader import DownloadContext, run, MAX_PER_RUN
 from paperdl.results import ResultStore
 from paperdl.session import browser_context, run_login
 from paperdl.adapters import springer, elsevier, nature, acs, rsc, wiley, crossref, frontiers, ieee, unpaywall, science, pnas, aims, annualreviews, mdpi
+from paperdl.search import get_source
+from paperdl.search.base import SearchQuery
+from paperdl.search.export import to_doi_list, to_csv, to_bibtex
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -28,6 +31,18 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--host", default="127.0.0.1")
     sp.add_argument("--port", type=int, default=8000)
 
+    ps = sub.add_parser("search", help="按关键词检索文献(OpenAlex)")
+    ps.add_argument("query", help="检索关键词")
+    ps.add_argument("--from", dest="year_from", type=int, default=None, help="起始年份")
+    ps.add_argument("--to", dest="year_to", type=int, default=None, help="结束年份")
+    ps.add_argument("--oa", action="store_true", help="仅开放获取")
+    ps.add_argument("--sort", choices=["relevance", "cited", "year"], default="relevance")
+    ps.add_argument("--type", dest="work_type", default="article", help="文献类型(默认 article)")
+    ps.add_argument("-n", "--num", type=int, default=25, help="结果数量(<=200)")
+    ps.add_argument("-o", "--out", default=None, help="导出 DOI 清单到文件")
+    ps.add_argument("--csv", default=None, help="导出 CSV 到文件")
+    ps.add_argument("--bib", default=None, help="导出 BibTeX 到文件")
+
     return p
 
 
@@ -46,6 +61,37 @@ def _do_run(list_path: str, max_per_run: int, show: bool = False) -> None:
         dctx = DownloadContext(page=page, out_dir=Path("downloads"), adapters=ADAPTERS,
                                cid=cid, pw=pw)
         run(Path(list_path), dctx, store, max_per_run=max_per_run)
+
+
+def _do_search(args) -> None:
+    src = get_source()
+    page = src.search(SearchQuery(
+        query=args.query, year_from=args.year_from, year_to=args.year_to,
+        oa_only=args.oa, work_type=args.work_type, sort=args.sort,
+        per_page=min(args.num, 200), page=1,
+    ))
+    papers = page.results
+    wrote = False
+    if args.out:
+        Path(args.out).write_text(to_doi_list(papers), encoding="utf-8")
+        print("已写 DOI 清单 → %s (%d 条)" % (args.out, sum(1 for p in papers if p.doi)))
+        wrote = True
+    if args.csv:
+        Path(args.csv).write_text(to_csv(papers), encoding="utf-8")
+        print("已写 CSV → %s" % args.csv)
+        wrote = True
+    if args.bib:
+        Path(args.bib).write_text(to_bibtex(papers), encoding="utf-8")
+        print("已写 BibTeX → %s" % args.bib)
+        wrote = True
+    if wrote:
+        return
+    print("共约 %d 条,显示前 %d:" % (page.total, len(papers)))
+    for i, p in enumerate(papers, 1):
+        au = (p.authors[0] + " 等") if p.authors else "—"
+        oa = "OA" if p.is_oa else "  "
+        print("%2d. [%s] %s (%s, %s) 被引%d  %s"
+              % (i, oa, p.title[:70], au, p.year or "—", p.cited_by, p.doi or "无DOI"))
 
 
 def _do_retry() -> None:
@@ -78,6 +124,8 @@ def main(argv=None) -> None:
     elif args.command == "serve":
         import uvicorn
         uvicorn.run("paperdl.web.app:app", host=args.host, port=args.port)
+    elif args.command == "search":
+        _do_search(args)
 
 
 if __name__ == "__main__":
