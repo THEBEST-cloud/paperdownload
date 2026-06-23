@@ -1,0 +1,77 @@
+{
+  "meta": {
+    "count": 48213,
+    "db_response_time_ms": 24,
+    "page": 1,
+    "per_page": 2
+  },
+  "results": [
+    {
+      "id": "https://openalex.org/W2741809807",
+      "doi": "https://doi.org/10.1016/j.marpolbul.2011.09.025",
+      "title": "Microplastics in the marine environment: A review",
+      "display_name": "Microplastics in the marine environment: A review",
+      "publication_year": 2011,
+      "publication_date": "2011-12-01",
+      "type": "article",
+      "cited_by_count": 1532,
+      "authorships": [
+        {
+          "author_position": "first",
+          "author": {"id": "https://openalex.org/A1", "display_name": "Matthew Cole"}
+        },
+        {
+          "author_position": "middle",
+          "author": {"id": "https://openalex.org/A2", "display_name": "Pennie Lindeque"}
+        },
+        {
+          "author_position": "last",
+          "author": {"id": "https://openalex.org/A3", "display_name": "Tamara S. Galloway"}
+        }
+      ],
+      "open_access": {
+        "is_oa": true,
+        "oa_status": "green",
+        "oa_url": "https://example.org/repo/microplastics.pdf"
+      },
+      "primary_location": {
+        "source": {"id": "https://openalex.org/S1", "display_name": "Marine Pollution Bulletin"}
+      },
+      "abstract_inverted_index": {
+        "Microplastics": [0],
+        "are": [1],
+        "small": [2],
+        "plastic": [3],
+        "particles": [4],
+        "in": [5],
+        "the": [6],
+        "ocean.": [7]
+      }
+    },
+    {
+      "id": "https://openalex.org/W3035551234",
+      "doi": "https://doi.org/10.1021/acs.est.0c01234",
+      "title": "Occurrence of microplastics in drinking water",
+      "display_name": "Occurrence of microplastics in drinking water",
+      "publication_year": 2020,
+      "publication_date": "2020-06-15",
+      "type": "article",
+      "cited_by_count": 87,
+      "authorships": [
+        {
+          "author_position": "first",
+          "author": {"id": "https://openalex.org/A9", "display_name": "Jane Q. Researcher"}
+        }
+      ],
+      "open_access": {
+        "is_oa": false,
+        "oa_status": "closed",
+        "oa_url": null
+      },
+      "primary_location": {
+        "source": {"id": "https://openalex.org/S2", "display_name": "Environmental Science & Technology"}
+      },
+      "abstract_inverted_index": null
+    }
+  ]
+}
