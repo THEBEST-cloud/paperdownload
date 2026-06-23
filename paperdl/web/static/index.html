@@ -189,6 +189,72 @@
     .summary-nums { gap: 10px; }
     .auth-card { padding: 24px 18px; }
   }
+
+  /* ── View nav tabs ── */
+  .view-tabs {
+    display: flex; gap: 0; border: 1px solid var(--border); border-radius: 6px;
+    overflow: hidden; margin-bottom: 20px; align-self: flex-start;
+  }
+  .view-tab {
+    padding: 7px 20px; font-size: 0.9rem; font-weight: 500;
+    cursor: pointer; background: #f9fafb; color: var(--muted);
+    border: none; transition: background .12s;
+  }
+  .view-tab.active { background: var(--primary); color: #fff; }
+  .view-tab:hover:not(.active) { background: #e5e7eb; }
+
+  /* ── Search view ── */
+  .search-bar { display: flex; gap: 8px; align-items: stretch; }
+  .search-bar input[type=text] { flex: 1; font-size: 1rem; padding: 9px 12px; }
+  .search-filters { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .search-filters label { display: inline; font-size: 0.85rem; font-weight: 500; margin-bottom: 0; }
+  .search-filters input[type=number] { width: 80px; }
+  .search-filters select {
+    padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 0.85rem; background: #fff;
+  }
+  .search-filters select:focus { outline: none; border-color: var(--primary); }
+  .filter-group { display: flex; align-items: center; gap: 6px; }
+  .search-result-item {
+    border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px;
+    margin-bottom: 10px; background: var(--card);
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  }
+  .search-result-item:hover { border-color: #c7d2fe; background: #fafbff; }
+  .result-top { display: flex; align-items: flex-start; gap: 10px; }
+  .result-checkbox { margin-top: 3px; width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
+  .result-body { flex: 1; }
+  .result-title {
+    font-size: 0.95rem; font-weight: 600; color: var(--text);
+    margin-bottom: 4px; line-height: 1.4;
+  }
+  .result-meta { font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
+  .result-meta span { margin-right: 10px; }
+  .result-doi { font-family: monospace; font-size: 0.75rem; color: var(--muted); }
+  .badge-oa { background: #dcfce7; color: var(--success); }
+  .badge-type { background: #eff6ff; color: var(--primary); }
+  .abstract-toggle {
+    font-size: 0.8rem; color: var(--primary); cursor: pointer;
+    background: none; border: none; padding: 0; margin-top: 4px;
+  }
+  .abstract-toggle:hover { text-decoration: underline; }
+  .abstract-text {
+    font-size: 0.83rem; color: #4b5563; margin-top: 8px;
+    line-height: 1.6; border-left: 3px solid #e0e3e8; padding-left: 10px;
+  }
+  .search-pagination { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+  .search-action-bar {
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    margin-top: 16px; padding: 12px 16px;
+    background: #f9fafb; border: 1px solid var(--border); border-radius: 8px;
+  }
+  .search-action-bar .export-group { display: flex; align-items: center; gap: 6px; }
+  .search-action-bar select {
+    padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 0.85rem; background: #fff;
+  }
+  #search-status { font-size: 0.85rem; color: var(--muted); margin-top: 8px; min-height: 18px; }
+  #search-results-count { font-size: 0.85rem; color: var(--muted); margin-bottom: 10px; }
 </style>
 </head>
 <body>
@@ -231,6 +297,15 @@
       <button class="btn btn-secondary btn-sm" onclick="doLogout()">退出</button>
     </div>
   </div>
+
+  <!-- 视图导航 -->
+  <div class="view-tabs">
+    <button class="view-tab active" id="nav-download" onclick="switchView('download')">下载</button>
+    <button class="view-tab" id="nav-search" onclick="switchView('search')">检索</button>
+  </div>
+
+  <!-- ══ 下载视图 ══ -->
+  <div id="view-download">
 
   <!-- ① 解析输入 -->
   <div class="card">
@@ -327,6 +402,76 @@
     <button class="btn btn-secondary btn-sm" onclick="loadHistory()" style="margin-bottom:12px">刷新</button>
     <div id="history-list"><span style="color:var(--muted);font-size:.85rem">加载中…</span></div>
   </div>
+
+  </div><!-- /#view-download -->
+
+  <!-- ══ 检索视图 ══ -->
+  <div id="view-search" class="hidden">
+
+    <!-- 搜索框 + 筛选 -->
+    <div class="card">
+      <h2>文献检索（OpenAlex）</h2>
+      <div class="search-bar">
+        <input type="text" id="search-query" placeholder="输入关键词，如 microplastics, CRISPR…"
+               onkeydown="if(event.key==='Enter') doSearch(1)">
+        <button class="btn btn-primary" onclick="doSearch(1)">搜索</button>
+      </div>
+      <div class="search-filters">
+        <div class="filter-group">
+          <label for="search-year-from">起始年</label>
+          <input type="number" id="search-year-from" placeholder="2000" min="1900" max="2100">
+        </div>
+        <div class="filter-group">
+          <label for="search-year-to">结束年</label>
+          <input type="number" id="search-year-to" placeholder="2025" min="1900" max="2100">
+        </div>
+        <div class="filter-group">
+          <input type="checkbox" id="search-oa" style="width:16px;height:16px;cursor:pointer">
+          <label for="search-oa" style="cursor:pointer">仅 OA</label>
+        </div>
+        <div class="filter-group">
+          <label for="search-sort">排序</label>
+          <select id="search-sort">
+            <option value="relevance">相关度</option>
+            <option value="cited">被引量</option>
+            <option value="year">年份</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 结果区 -->
+    <div id="search-results-wrap" class="hidden">
+      <div id="search-error" class="hidden"></div>
+      <div id="search-results-count"></div>
+      <div id="search-results-list"></div>
+
+      <!-- 分页 -->
+      <div class="search-pagination">
+        <button class="btn btn-secondary btn-sm" id="btn-prev-page"
+                onclick="doSearch(searchPage - 1)" disabled>上一页</button>
+        <span id="search-page-info" style="font-size:0.85rem;color:var(--muted)"></span>
+        <button class="btn btn-secondary btn-sm" id="btn-next-page"
+                onclick="doSearch(searchPage + 1)" disabled>下一页</button>
+      </div>
+
+      <!-- 操作栏 -->
+      <div class="search-action-bar">
+        <button class="btn btn-primary btn-sm" onclick="searchDownloadSelected()">下载选中</button>
+        <div class="export-group">
+          <select id="export-format">
+            <option value="doi">DOI 列表</option>
+            <option value="csv">CSV</option>
+            <option value="bib">BibTeX</option>
+          </select>
+          <button class="btn btn-secondary btn-sm" onclick="searchExportSelected()">导出</button>
+        </div>
+        <span id="search-status"></span>
+      </div>
+    </div>
+
+  </div><!-- /#view-search -->
+
 </div>
 </div><!-- /#app-screen -->
 
@@ -848,6 +993,228 @@ async function loadHistory() {
   } catch(e) {
     if (e.message !== "unauthorized")
       el.innerHTML = '<span style="color:var(--danger)">加载失败</span>';
+  }
+}
+
+/* ── 视图切换 ── */
+function switchView(name) {
+  document.getElementById("view-download").classList.toggle("hidden", name !== "download");
+  document.getElementById("view-search").classList.toggle("hidden", name !== "search");
+  document.getElementById("nav-download").classList.toggle("active", name === "download");
+  document.getElementById("nav-search").classList.toggle("active", name === "search");
+}
+
+/* ── 检索状态 ── */
+let searchPage = 1;
+let searchTotal = 0;
+let searchPerPage = 10;
+// 当前结果集（完整 paper 对象数组，按渲染顺序）
+let searchResults = [];
+
+/* ── 搜索结果渲染 ── */
+async function doSearch(page) {
+  const q = document.getElementById("search-query").value.trim();
+  if (!q) { alert("请输入搜索关键词。"); return; }
+  if (page < 1) return;
+
+  searchPage = page;
+  const year_from = document.getElementById("search-year-from").value.trim();
+  const year_to   = document.getElementById("search-year-to").value.trim();
+  const oa        = document.getElementById("search-oa").checked ? "1" : "";
+  const sort      = document.getElementById("search-sort").value;
+
+  const params = new URLSearchParams({ q, sort, page, per_page: searchPerPage });
+  if (year_from) params.set("year_from", year_from);
+  if (year_to)   params.set("year_to",   year_to);
+  if (oa)        params.set("oa", "1");
+
+  // show results wrap, clear old content
+  const wrap = document.getElementById("search-results-wrap");
+  wrap.classList.remove("hidden");
+  const listEl = document.getElementById("search-results-list");
+  listEl.innerHTML = '<span style="color:var(--muted);font-size:.85rem">搜索中…</span>';
+  document.getElementById("search-results-count").textContent = "";
+  document.getElementById("search-status").textContent = "";
+  hideSearchError();
+
+  try {
+    const res = await api("/api/search?" + params.toString());
+    if (!res.ok) {
+      const txt = await res.text();
+      showSearchError("搜索失败：" + txt);
+      listEl.innerHTML = "";
+      return;
+    }
+    const data = await res.json();
+    searchTotal   = data.total || 0;
+    searchResults = data.results || [];
+
+    const totalPages = Math.max(1, Math.ceil(searchTotal / searchPerPage));
+    document.getElementById("search-results-count").textContent =
+      `共 ${searchTotal} 条结果，第 ${searchPage} / ${totalPages} 页`;
+    document.getElementById("search-page-info").textContent =
+      `第 ${searchPage} / ${totalPages} 页`;
+    document.getElementById("btn-prev-page").disabled = (searchPage <= 1);
+    document.getElementById("btn-next-page").disabled = (searchPage >= totalPages);
+
+    if (searchResults.length === 0) {
+      listEl.innerHTML = '<div class="alert">未找到匹配结果，请尝试其他关键词或调整筛选条件。</div>';
+      return;
+    }
+
+    listEl.innerHTML = "";
+    searchResults.forEach((paper, idx) => {
+      const authors = (paper.authors || []).slice(0, 3).join(", ");
+      const authorStr = authors + ((paper.authors || []).length > 3 ? " 等" : "");
+      const oaBadge = paper.is_oa
+        ? '<span class="badge badge-oa">OA</span> '
+        : '';
+      const typeBadge = paper.type
+        ? `<span class="badge badge-type">${esc(paper.type)}</span> `
+        : '';
+      const doi = paper.doi || "";
+      const hasAbstract = paper.abstract && paper.abstract.trim();
+
+      const item = document.createElement("div");
+      item.className = "search-result-item";
+      item.innerHTML = `
+        <div class="result-top">
+          <input type="checkbox" class="result-checkbox" data-idx="${idx}"
+                 value="${esc(doi)}" title="${esc(doi)}">
+          <div class="result-body">
+            <div class="result-title">${oaBadge}${typeBadge}${esc(paper.title || "(无标题)")}</div>
+            <div class="result-meta">
+              ${authorStr ? `<span>${esc(authorStr)}</span>` : ""}
+              ${paper.year ? `<span>${paper.year} 年</span>` : ""}
+              ${paper.venue ? `<span>${esc(paper.venue)}</span>` : ""}
+              ${paper.cited_by != null ? `<span>被引 ${paper.cited_by}</span>` : ""}
+            </div>
+            ${doi ? `<div class="result-doi">DOI: ${esc(doi)}</div>` : ""}
+            ${hasAbstract ? `
+              <button class="abstract-toggle" onclick="toggleAbstract(this)">▶ 显示摘要</button>
+              <div class="abstract-text hidden">${esc(paper.abstract)}</div>
+            ` : ""}
+          </div>
+        </div>
+      `;
+      listEl.appendChild(item);
+    });
+  } catch(e) {
+    if (e.message !== "unauthorized") showSearchError("搜索请求失败：" + e);
+    listEl.innerHTML = "";
+  }
+}
+
+function toggleAbstract(btn) {
+  const absEl = btn.nextElementSibling;
+  const collapsed = absEl.classList.toggle("hidden");
+  btn.textContent = collapsed ? "▶ 显示摘要" : "▼ 收起摘要";
+}
+
+function showSearchError(msg) {
+  const el = document.getElementById("search-error");
+  el.className = "alert-error";
+  el.textContent = msg;
+}
+function hideSearchError() {
+  const el = document.getElementById("search-error");
+  el.className = "hidden";
+  el.textContent = "";
+}
+
+/* 收集勾选条目 */
+function getCheckedPapers() {
+  const checkboxes = document.querySelectorAll("#search-results-list .result-checkbox:checked");
+  const dois = [];
+  const papers = [];
+  checkboxes.forEach(cb => {
+    const idx = parseInt(cb.dataset.idx, 10);
+    const paper = searchResults[idx];
+    if (paper) {
+      papers.push(paper);
+      if (paper.doi) dois.push(paper.doi);
+    }
+  });
+  return { dois, papers };
+}
+
+/* ── 下载选中 ── */
+async function searchDownloadSelected() {
+  const { dois } = getCheckedPapers();
+  if (!dois.length) { alert("请先勾选要下载的文献。"); return; }
+
+  const statusEl = document.getElementById("search-status");
+  statusEl.style.color = "var(--muted)";
+  statusEl.textContent = "提交中…";
+
+  try {
+    const res = await api("/api/search/download", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ dois })
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      statusEl.style.color = "var(--danger)";
+      statusEl.textContent = "提交失败：" + txt;
+      return;
+    }
+    const data = await res.json();
+    const jobId = data.job_id;
+    statusEl.style.color = "var(--success)";
+    statusEl.textContent = `已创建下载任务 ${jobId}，切换到下载视图查看进度。`;
+    // 切换到下载视图并显示进度
+    switchView("download");
+    openJob(jobId);
+  } catch(e) {
+    if (e.message !== "unauthorized") {
+      statusEl.style.color = "var(--danger)";
+      statusEl.textContent = "请求失败：" + e;
+    }
+  }
+}
+
+/* ── 导出 ── */
+async function searchExportSelected() {
+  const { papers } = getCheckedPapers();
+  if (!papers.length) { alert("请先勾选要导出的文献。"); return; }
+
+  const format = document.getElementById("export-format").value;
+  const statusEl = document.getElementById("search-status");
+  statusEl.style.color = "var(--muted)";
+  statusEl.textContent = "导出中…";
+
+  try {
+    const res = await api("/api/search/export", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ papers, format })
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      statusEl.style.color = "var(--danger)";
+      statusEl.textContent = "导出失败：" + txt;
+      return;
+    }
+    // 触发文件下载
+    const blob = await res.blob();
+    const cd = res.headers.get("Content-Disposition") || "";
+    let filename = "export";
+    const m = cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';\r\n]+)/i);
+    if (m) filename = decodeURIComponent(m[1]);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    statusEl.style.color = "var(--success)";
+    statusEl.textContent = "导出完成：" + filename;
+  } catch(e) {
+    if (e.message !== "unauthorized") {
+      statusEl.style.color = "var(--danger)";
+      statusEl.textContent = "请求失败：" + e;
+    }
   }
 }
 
