@@ -81,6 +81,25 @@ paperdl run list.txt # ④ 按清单批量下载
 - **`paperdl login`**：弹浏览器自动用 `.paperdl.env` 登录通行证；弹验证码/机构二次登录时按提示点一下。
 - **`paperdl run list.txt`**：清单为纯文本每行一个 DOI（兼容 csv 取第一列、跳表头）。默认单次上限 50、每篇间隔 8–20 秒（合规限速，别去掉）。PDF 存 `downloads/`，每篇结果记 `results.csv`，重复跑自动跳过已成功的。
 
+### `.paperdl.env` 长这样（通行证账号 / 密钥示例）
+
+`paperdl config` 会引导你生成它，也可以照 `.paperdl.env.example` 自己手填。**只有通行证账号 + 密码是必填**，其余密钥都可选：
+
+```ini
+# 必填——中国科技云通行证（账号就是你登录 passport.escience.cn 用的中科院邮箱）
+CSTCLOUD_ID=zhangsan@mails.ucas.ac.cn
+CSTCLOUD_PASSWORD=你的通行证登录密码
+
+# 以下全部可选，留空即走浏览器/不发邮件，不影响下载
+ELSEVIER_API_KEY=         # 出版商密钥示例：dev.elsevier.com 免费申请，Elsevier 走官方 API 更快
+WILEY_TDM_TOKEN=          # Wiley TDM 令牌（onlinelibrary.wiley.com 申请）
+OPENALEX_MAILTO=          # 检索用的礼貌池邮箱，留空自动回退用 CSTCLOUD_ID
+```
+
+> - **账号 = 你的中科院邮箱**（如 `xxx@mails.ucas.ac.cn` / 各所 `@xxx.ac.cn`），就是平时登 las.ac.cn / 通行证那个；**不是**手机号。
+> - **密钥**指的是上面那几个**出版商 API key**，是「锦上添花」的可选项，不是登录通行证用的——通行证只认账号 + 密码。
+> - 该文件已被 git 忽略、`chmod 600`，**不会上传、不进代码库**；换机器各自填各自的。
+
 ```bash
 paperdl run list.txt --max 10   # 自定义单次上限
 paperdl retry                   # 只重试上次失败的条目
