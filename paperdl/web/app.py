@@ -3,6 +3,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Response, Cookie, Depends
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -12,6 +13,11 @@ from paperdl.dispatch import adapter_key_for
 from paperdl.web.jobs import JobManager
 from paperdl.web.auth import Auth
 from paperdl.mailer import send_pdfs
+from dataclasses import asdict
+from paperdl.search import get_source
+from paperdl.search.base import SearchQuery
+from paperdl.search.base import Paper
+from paperdl.search.export import to_doi_list, to_csv, to_bibtex
 
 app = FastAPI(title="paperdl")
 mgr = JobManager()
@@ -213,3 +219,48 @@ def api_delete_job(job_id: str, user: str = Depends(current_user)):
         raise HTTPException(404, "not found")
     mgr.delete(job_id)
     return {"ok": True}
+
+
+# ── Search endpoints (login required) ───────────────────────────────────────
+
+@app.get("/api/search")
+def api_search(q: str, year_from: int = None, year_to: int = None,
+               oa: bool = False, sort: str = "relevance", type: str = "article",
+               page: int = 1, per_page: int = 25, user: str = Depends(current_user)):
+    src = get_source()
+    try:
+        sp = src.search(SearchQuery(query=q, year_from=year_from, year_to=year_to,
+                                    oa_only=oa, work_type=type, sort=sort,
+                                    page=page, per_page=min(per_page, 200)))
+    except httpx.HTTPError as e:
+        raise HTTPException(502, "检索服务暂时不可用：%s" % e)
+    return {"results": [asdict(p) for p in sp.results],
+            "total": sp.total, "page": sp.page, "per_page": sp.per_page}
+
+
+@app.post("/api/search/export")
+def api_search_export(payload: dict, user: str = Depends(current_user)):
+    rows = payload.get("papers") or []
+    papers = [Paper(**{k: r.get(k) for k in
+                       ("title", "authors", "year", "venue", "doi",
+                        "cited_by", "is_oa", "abstract", "type", "oa_url")
+                       if r.get(k) is not None}) for r in rows]
+    fmt = payload.get("format", "doi")
+    if fmt == "csv":
+        body, media, name = to_csv(papers), "text/csv", "papers.csv"
+    elif fmt == "bib":
+        body, media, name = to_bibtex(papers), "text/plain", "papers.bib"
+    else:
+        body, media, name = to_doi_list(papers), "text/plain", "dois.txt"
+    return Response(content=body, media_type=media,
+                    headers={"Content-Disposition": 'attachment; filename="%s"' % name})
+
+
+@app.post("/api/search/download")
+def api_search_download(payload: dict, user: str = Depends(current_user)):
+    dois = [d for d in (payload.get("dois") or []) if d]
+    if not dois:
+        raise HTTPException(400, "no dois")
+    job = mgr.create(_new_id(), datetime.now(timezone.utc).isoformat(), dois, owner=user)
+    mgr.start(job)
+    return {"job_id": job.id}

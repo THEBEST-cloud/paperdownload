@@ -3,6 +3,7 @@
 按 DOI 清单批量下载文献的工具（命令行 + 网页版）。面向**中科院**用户，通过中科院文献情报中心（las.ac.cn / 中国科技云通行证 CSTCloud）的机构订阅取全文。
 
 - **覆盖 13 家主流出版商** + 两个开放获取兜底，订阅墙和 Cloudflare 都能过。
+- **按关键词检索文献**（OpenAlex，可筛选 / 导出 / 勾选直接下载）。
 - **账号密码只存本地** gitignore 的 `.paperdl.env`，不上传、不进代码库。
 - 命令行批量跑，或网页版点点鼠标。
 
@@ -94,6 +95,42 @@ paperdl retry                   # 只重试上次失败的条目
 
 ---
 
+## 检索文献（OpenAlex）
+
+数据源 **OpenAlex**（免费、无需 key、全学科）；检索结果返回 DOI，可直接交给 `paperdl run` 下载；WoS 等以后可作为可插拔源加入（`paperdl/search/`）。
+
+### 命令行
+
+```bash
+# 检索并在终端打印结果表格
+paperdl search "microplastics drinking water" --from 2020 --oa --sort cited -n 25
+
+# 导出 DOI 清单，直接 paperdl run list.txt 批量下载
+paperdl search "microplastics drinking water" -o list.txt
+
+# 同时导出 CSV 和 BibTeX
+paperdl search "microplastics drinking water" --csv out.csv --bib out.bib
+```
+
+**常用参数：**
+
+| 参数 | 说明 |
+|---|---|
+| `--from YYYY` / `--to YYYY` | 发表年份范围 |
+| `--oa` | 仅显示开放获取文献 |
+| `--sort relevance\|cited\|year` | 排序方式（相关度 / 被引量 / 年份） |
+| `--type article` | 文献类型（默认 article） |
+| `-n N` | 返回结果数（最多 200） |
+| `-o list.txt` | 导出 DOI 清单（可直接接 `paperdl run`） |
+| `--csv out.csv` | 导出 CSV |
+| `--bib out.bib` | 导出 BibTeX |
+
+### 网页版检索
+
+在「**检索**」页（与「下载」页切换）输入关键词 → 按年份 / 仅 OA / 排序筛选 → 结果卡片显示标题 / 作者 / 年份 / 期刊 / 被引量 / OA 徽标 / 可展开摘要 → 勾选论文后点「**下载选中**」直接进下载队列，或点「**导出**」下载 DOI 清单 / CSV / BibTeX。
+
+---
+
 ## 网页版（推荐日常用）
 
 ```bash
@@ -152,4 +189,4 @@ python scripts/make_skill.py ~/.claude/skills/paperdl
 /home/hoo/.conda/envs/res-agent/bin/python3 -m pytest -q   # 跑测试
 ```
 
-设计与实施文档见 `docs/superpowers/`。代码结构：`paperdl/`（cli / session / shibboleth / downloader / adapters / web / configure / doctor），`scripts/`（setup.sh / make_skill.py），`skill/`（SKILL.md / AGENTS.md / references）。
+设计与实施文档见 `docs/superpowers/`。代码结构：`paperdl/`（cli / session / shibboleth / downloader / adapters / web / configure / doctor），`paperdl/search/`（检索：base / openalex / export），`scripts/`（setup.sh / make_skill.py），`skill/`（SKILL.md / AGENTS.md / references）。
