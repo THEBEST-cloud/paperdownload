@@ -1,32 +1,61 @@
 # paperdl
 
-按 DOI 清单批量下载文献的工具（命令行 + 网页版）。面向**中科院**用户，通过中科院文献情报中心（las.ac.cn / 中国科技云通行证 CSTCloud）的机构订阅取全文。
+面向中科院用户的学术文献检索与批量下载 Skill，支持 **Codex、Claude Code、命令行和网页端**。
 
-- **覆盖 13 家主流出版商** + 两个开放获取兜底，订阅墙和 Cloudflare 都能过。
-- **按关键词检索文献**（OpenAlex，可筛选 / 导出 / 勾选直接下载）。
-- **账号密码只存本地** gitignore 的 `.paperdl.env`，不上传、不进代码库。
-- 命令行批量跑，或网页版点点鼠标。
+paperdl 帮你完成关键词检索、DOI 清单整理、机构订阅全文下载、失败重试和结果管理。它只使用开放获取资源或你所在机构已经购买的访问权限。
 
----
+安装前准备：Git、Python 3.10+，以及 Codex 或 Claude Code。macOS/Windows 用户推荐使用 Docker。
 
-## 它是怎么取到全文的
+## 快速安装
 
-机构访问**靠中科院通行证的 Shibboleth 联邦登录**（不是靠 IP）。难点是出版商普遍套了 Cloudflare 反爬，普通 HTTP 客户端即便带着有效 cookie 也会被 TLS 指纹识别而 403。paperdl 的做法：
+### Codex
 
-- **patchright**（隐身版 Chromium）过 Cloudflare 的 "Just a moment" 挑战；
-- 走通行证 **Shibboleth** 拿机构授权（含 Atypon 两步同意、Elsevier 的 id.elsevier OAuth 中转等坑都填平了）；
-- PDF 一律**通过浏览器自身下载/取字节**（指纹与 cf_clearance 一致），而非 Python 直连。
+```bash
+git clone --depth 1 https://github.com/THEBEST-cloud/paperdownload.git
+cd paperdownload
+python3 scripts/make_skill.py "${CODEX_HOME:-$HOME/.codex}/skills/paperdl"
+```
 
-部分出版商有更快的官方通道（Elsevier API、Wiley TDM），配了 key 就优先走；没配则自动走浏览器。开放获取的文章用 Unpaywall / Crossref 兜底。
+重启 Codex，然后输入：
 
-### 支持的出版商
+> 使用 `$paperdl` 帮我完成首次安装和账号配置。
 
-| 取全文方式 | 出版商（DOI 前缀） |
+### Claude Code
+
+```bash
+git clone --depth 1 https://github.com/THEBEST-cloud/paperdownload.git
+cd paperdownload
+python3 scripts/make_skill.py "$HOME/.claude/skills/paperdl"
+```
+
+重启 Claude Code，然后输入：
+
+> 使用 paperdl 帮我完成首次安装和账号配置。
+
+### 立即试用
+
+```text
+使用 $paperdl 搜索 2022 年以来关于水环境微塑料的高被引论文。
+使用 $paperdl 下载 dois.txt 中我有权限访问的论文。
+使用 $paperdl 重试上次失败的下载。
+```
+
+机构订阅下载需要你自己的中国科技云通行证账号；OpenAlex 检索无需登录。完整步骤见[安装与配置说明](skill/references/configuration.md)。
+
+## 功能概览
+
+- 覆盖 13 家主流出版商，并提供开放获取兜底。
+- 支持 OpenAlex 关键词检索、年份筛选和多种格式导出。
+- 支持 DOI 批量下载、断点续跑、失败重试和网页管理。
+- 账号、登录状态和下载结果只保存在使用者本地。
+
+## 支持的出版商
+
+| 访问类型 | 出版商 |
 |---|---|
-| Shibboleth 浏览器（机构订阅） | Elsevier `10.1016`、Wiley `10.1002/10.1111/10.1029`、Nature `10.1038`、Science `10.1126`、ACS `10.1021`、IEEE `10.1109`、Annual Reviews `10.1146` |
-| 浏览器 / IP 直通 | Springer `10.1007`、RSC `10.1039` |
-| 开放获取（无需登录） | Frontiers `10.3389`、PNAS `10.1073`、AIMS `10.3934`、MDPI `10.3390` |
-| 兜底 | Crossref / Unpaywall（任意 OA 可得的文章） |
+| 机构订阅 | Elsevier、Wiley、Nature、Science、ACS、IEEE、Annual Reviews、Springer、RSC |
+| 开放获取 | Frontiers、PNAS、AIMS Press、MDPI |
+| 开放获取补充 | Crossref、Unpaywall |
 
 > 注：能否下到全文取决于**你机构的订阅范围**。机构没订的（如某些老回溯卷）会失败，需走馆际互借 / NSTL 文献传递。
 
@@ -189,22 +218,6 @@ paperdl serve --host 0.0.0.0 --port 8200
 - 凭证只存本地 `.paperdl.env`（`chmod 600`），登录态存 `.profile/`，均 gitignore，不上传。
 - **限速 8–20 秒/篇、单次有上限**，避免触发出版商风控、连累机构 IP。
 - 只走机构合规渠道，**不做 Sci-Hub 之类第三方源**。
-
----
-
-## 做成 Skill / Codex 包（分享给同事）
-
-把整套脱敏打包成一个自包含目录；按使用端选择安装位置：
-
-```bash
-# Codex
-python3 scripts/make_skill.py "${CODEX_HOME:-$HOME/.codex}/skills/paperdl"
-
-# Claude Code
-python3 scripts/make_skill.py "$HOME/.claude/skills/paperdl"
-```
-
-产物含通用入口 `SKILL.md`、脱敏源码 `app/` 和安装/配置/排障说明 `references/`。打包使用白名单，**不会带入仓库根目录的 `.paperdl.env`、`.profile`、下载文件或账号库**。接收者重启 Codex/Claude Code 后，按 `references/configuration.md` 安装运行环境并配置自己的账号；用户数据应放在 Skill 目录之外。
 
 ---
 

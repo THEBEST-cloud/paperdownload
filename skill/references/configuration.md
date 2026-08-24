@@ -5,7 +5,7 @@
 从 GitHub 仓库生成脱敏、自包含的 Skill 目录：
 
 ```bash
-git clone https://github.com/THEBEST-cloud/paperdownload.git
+git clone --depth 1 https://github.com/THEBEST-cloud/paperdownload.git
 cd paperdownload
 
 # Codex（二选一）
