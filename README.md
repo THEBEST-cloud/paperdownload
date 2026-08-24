@@ -63,27 +63,29 @@ bash scripts/setup.sh
 
 脚本会：建独立虚拟环境 `.venv` → 装 paperdl 及依赖 → `patchright install chromium` → 检查 Xvfb（无图形界面的服务器需要：`sudo apt-get install -y xvfb`）。
 
-装好后命令是 `paperdl`（或 `.venv/bin/paperdl`）。
+装好后用 `.venv/bin/paperdl`；如先执行 `source .venv/bin/activate`，也可直接用 `paperdl`。
 
 ---
 
 ## 快速上手（命令行）
 
 ```bash
-paperdl config      # ① 交互式填账号/密钥，生成 .paperdl.env（只填你自己的）
-paperdl doctor      # ② 一键自检：依赖/chromium/xvfb/配置/代理/登录态
-paperdl login       # ③ 首次登录（陌生设备会要一次性短信验证；之后约 10 天免登录）
-paperdl run list.txt # ④ 按清单批量下载
+.venv/bin/paperdl config       # ① 交互式填账号/密钥，生成 .paperdl.env（只填你自己的）
+.venv/bin/paperdl doctor       # ② 一键自检：依赖/chromium/xvfb/配置/代理/登录态
+.venv/bin/paperdl login        # ③ 首次登录（陌生设备会要一次性短信验证；之后约 10 天免登录）
+.venv/bin/paperdl run list.txt # ④ 按清单批量下载
 ```
 
-- **`paperdl config`**：逐项引导。必填**中科院通行证账号/密码**；Elsevier API key、Wiley TDM token、SMTP 邮件等都是**可选**（留空就走浏览器/不用邮件）。密码不回显、文件 `chmod 600`、绝不内置任何人的默认值。
+下文为简洁统一写作 `paperdl`；未激活虚拟环境时请替换为 `.venv/bin/paperdl`。
+
+- **`paperdl config`**：逐项引导。必填**中科院通行证账号/密码**；Elsevier API key、Wiley TDM token、OpenAlex 邮箱、SMTP 邮件等都是**可选**（留空就走浏览器/自动回退/不用邮件）。密码不回显、文件 `chmod 600`、绝不内置任何人的默认值。
 - **`paperdl doctor`**：新机器或出问题时先跑它，逐项 ✅/⚠️/❌ 给修复提示。
 - **`paperdl login`**：弹浏览器自动用 `.paperdl.env` 登录通行证；弹验证码/机构二次登录时按提示点一下。
 - **`paperdl run list.txt`**：清单为纯文本每行一个 DOI（兼容 csv 取第一列、跳表头）。默认单次上限 50、每篇间隔 8–20 秒（合规限速，别去掉）。PDF 存 `downloads/`，每篇结果记 `results.csv`，重复跑自动跳过已成功的。
 
 ### `.paperdl.env` 长这样（通行证账号 / 密钥示例）
 
-`paperdl config` 会引导你生成它，也可以照 `.paperdl.env.example` 自己手填。**只有通行证账号 + 密码是必填**，其余密钥都可选：
+`paperdl config` 会引导你生成它，也可以照 `skill/references/env.example` 自己手填。**只有通行证账号 + 密码是必填**，其余密钥都可选：
 
 ```ini
 # 必填——中国科技云通行证（账号就是你登录 passport.escience.cn 用的中科院邮箱）
@@ -192,13 +194,17 @@ paperdl serve --host 0.0.0.0 --port 8200
 
 ## 做成 Skill / Codex 包（分享给同事）
 
-把整套脱敏打包成一个自包含目录，同事在 **Claude Code 或 Codex** 里都能用：
+把整套脱敏打包成一个自包含目录；按使用端选择安装位置：
 
 ```bash
-python scripts/make_skill.py ~/.claude/skills/paperdl
+# Codex
+python3 scripts/make_skill.py "${CODEX_HOME:-$HOME/.codex}/skills/paperdl"
+
+# Claude Code
+python3 scripts/make_skill.py "$HOME/.claude/skills/paperdl"
 ```
 
-产物含 `SKILL.md`（Claude Code 入口）、`AGENTS.md`（Codex 入口）、脱敏后的源码 `app/`、`references/`（排障 + `.paperdl.env` 模板）。打包用白名单机制，**绝不带任何人的 `.paperdl.env` / `.profile` / 下载文件 / 账号库**。每个人拿到后用 `paperdl config` 配自己的账号。
+产物含通用入口 `SKILL.md`、脱敏源码 `app/` 和安装/配置/排障说明 `references/`。打包使用白名单，**不会带入仓库根目录的 `.paperdl.env`、`.profile`、下载文件或账号库**。接收者重启 Codex/Claude Code 后，按 `references/configuration.md` 安装运行环境并配置自己的账号；用户数据应放在 Skill 目录之外。
 
 ---
 

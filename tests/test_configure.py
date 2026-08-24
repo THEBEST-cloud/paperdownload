@@ -50,3 +50,17 @@ def test_run_config_collects_required(tmp_path):
     assert d["CSTCLOUD_ID"] == "acct@cas.cn"
     assert d["CSTCLOUD_PASSWORD"] == "secretpw"
     assert "ELSEVIER_API_KEY" not in d        # 跳过的可选项不写
+
+
+def test_run_config_collects_openalex_mailto(tmp_path):
+    def inp(prompt):
+        if "通行证账号" in prompt:
+            return "acct@cas.cn"
+        if "OpenAlex" in prompt:
+            return "researcher@example.com"
+        return ""
+
+    run_config(base=tmp_path, input_fn=inp,
+               getpass_fn=lambda prompt: "secretpw" if "通行证密码" in prompt else "")
+    d = parse_env((tmp_path / ".paperdl.env").read_text(encoding="utf-8"))
+    assert d["OPENALEX_MAILTO"] == "researcher@example.com"

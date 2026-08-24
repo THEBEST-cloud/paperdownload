@@ -1,41 +1,26 @@
 # tests/test_search_web.py
 import httpx
+import pytest
 import paperdl.web.app as webapp
 from paperdl.search.base import Paper, SearchPage
-from fastapi.testclient import TestClient
-
-
-def _login_client(monkeypatch):
-    # 绕过鉴权:直接覆盖依赖
-    webapp.app.dependency_overrides[webapp.current_user] = lambda: "tester"
-    return TestClient(webapp.app)
+from fastapi import HTTPException
 
 
 def test_search_route(monkeypatch):
     papers = [Paper(title="Hello", doi="10.1/x", year=2021, cited_by=3)]
     monkeypatch.setattr(webapp, "get_source",
                         lambda *a, **k: type("S", (), {"search": lambda self, q: SearchPage(results=papers, total=1)})())
-    c = _login_client(monkeypatch)
-    try:
-        r = c.get("/api/search", params={"q": "hello"})
-        assert r.status_code == 200
-        body = r.json()
-        assert body["total"] == 1
-        assert body["results"][0]["doi"] == "10.1/x"
-    finally:
-        webapp.app.dependency_overrides.clear()
+    body = webapp.api_search(q="hello", user="tester")
+    assert body["total"] == 1
+    assert body["results"][0]["doi"] == "10.1/x"
 
 
 def test_export_route(monkeypatch):
-    c = _login_client(monkeypatch)
-    try:
-        r = c.post("/api/search/export",
-                   json={"papers": [{"title": "X", "doi": "10.1/x", "authors": [], "year": 2020}],
-                         "format": "doi"})
-        assert r.status_code == 200
-        assert "10.1/x" in r.text
-    finally:
-        webapp.app.dependency_overrides.clear()
+    r = webapp.api_search_export(
+        {"papers": [{"title": "X", "doi": "10.1/x", "authors": [], "year": 2020}],
+         "format": "doi"}, user="tester")
+    assert r.status_code == 200
+    assert b"10.1/x" in r.body
 
 
 def test_download_route(monkeypatch):
@@ -50,13 +35,8 @@ def test_download_route(monkeypatch):
             pass
 
     monkeypatch.setattr(webapp, "mgr", FakeMgr())
-    c = _login_client(monkeypatch)
-    try:
-        r = c.post("/api/search/download", json={"dois": ["10.1/x", "10.2/y"]})
-        assert r.status_code == 200
-        assert r.json()["job_id"] == "job-xyz"
-    finally:
-        webapp.app.dependency_overrides.clear()
+    body = webapp.api_search_download({"dois": ["10.1/x", "10.2/y"]}, user="tester")
+    assert body["job_id"] == "job-xyz"
 
 
 def test_search_502_on_httpx_error(monkeypatch):
@@ -66,9 +46,6 @@ def test_search_502_on_httpx_error(monkeypatch):
             raise httpx.ConnectError("boom")
 
     monkeypatch.setattr(webapp, "get_source", lambda *a, **k: BrokenSource())
-    c = _login_client(monkeypatch)
-    try:
-        r = c.get("/api/search", params={"q": "x"})
-        assert r.status_code == 502
-    finally:
-        webapp.app.dependency_overrides.clear()
+    with pytest.raises(HTTPException) as exc:
+        webapp.api_search(q="x", user="tester")
+    assert exc.value.status_code == 502

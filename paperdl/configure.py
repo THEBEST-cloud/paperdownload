@@ -9,6 +9,7 @@ ENV_FIELDS = [
     ("ELSEVIER_API_KEY", False, "Elsevier API Key", "dev.elsevier.com 免费申请；留空则 Elsevier 走浏览器", False),
     ("ELSEVIER_INSTTOKEN", False, "Elsevier 机构令牌", "图书馆提供，校外 API 全文用；通常留空", True),
     ("WILEY_TDM_TOKEN", False, "Wiley TDM Token", "Wiley 申请；留空则 Wiley 走浏览器", True),
+    ("OPENALEX_MAILTO", False, "OpenAlex 联系邮箱", "检索礼貌池邮箱；留空则自动回退", False),
     ("SMTP_HOST", False, "SMTP 服务器", "如 smtp.qq.com；用邮件发送才填", False),
     ("SMTP_PORT", False, "SMTP 端口", "如 465", False),
     ("SMTP_USER", False, "SMTP 用户名", "你的邮箱", False),

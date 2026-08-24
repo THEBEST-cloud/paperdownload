@@ -1,5 +1,0 @@
-# 把以下片段加入 ~/.codex/config.toml 即可让 Codex 调用 paperdl 的 MCP 工具
-# （需先完成阶段二的 `paperdl mcp`；阶段一用 AGENTS.md + CLI 即可，无需本段）
-# [mcp_servers.paperdl]
-# command = "paperdl"      # 或 .venv/bin/paperdl 的绝对路径
-# args = ["mcp"]
